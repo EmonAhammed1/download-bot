@@ -24,27 +24,29 @@ FILES_TO_SYNC = [
     "downloader.py",
     "config.py",
     "requirements.txt",
+    "Dockerfile",
+    "docker-compose.yml",
+    "README.md",
 ]
 
-def run_sync(commit_msg="Update bot"):
+def deploy_docker(commit_msg="Update bot"):
     print("==========================================")
-    print("🚀 Auto-Sync & Deploy to GitHub + VPS")
+    print("🐳 Deploying Telegram Bot as Docker Container to VPS")
     print("==========================================")
 
     # 1. Git Add, Commit & Push to GitHub
     print("\n1. Pushing changes to GitHub...")
     try:
         subprocess.run(["git", "add", "."], cwd=LOCAL_DIR, check=True)
-        # Commit if there are changes
         res = subprocess.run(["git", "status", "--porcelain"], cwd=LOCAL_DIR, capture_output=True, text=True)
         if res.stdout.strip():
             subprocess.run(["git", "commit", "-m", commit_msg], cwd=LOCAL_DIR, check=True)
         subprocess.run(["git", "push", "origin", "main"], cwd=LOCAL_DIR, check=True)
         print("✅ Pushed to GitHub successfully!")
     except Exception as e:
-        print(f"⚠️ Git push notice: {e}")
+        print(f"⚠️ Git notice: {e}")
 
-    # 2. Deploy to VPS via SSH & SFTP
+    # 2. SSH to VPS
     print(f"\n2. Connecting to VPS ({HOST})...")
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -56,8 +58,25 @@ def run_sync(commit_msg="Update bot"):
         print(f"❌ Failed to connect to VPS: {e}")
         return
 
-    # Upload updated files
-    print("\n3. Syncing updated files to VPS...")
+    def exec_cmd(cmd):
+        print(f"\n[RUNNING]: {cmd}")
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        out = stdout.read().decode('utf-8', errors='ignore')
+        err = stderr.read().decode('utf-8', errors='ignore')
+        if out:
+            print(f"[OUTPUT]:\n{out.strip()}")
+        if err and "warning" not in err.lower() and "notice" not in err.lower():
+            print(f"[STDERR]:\n{err.strip()}")
+        return out, err
+
+    # 3. Stop systemd service if running to avoid conflict
+    print("\n3. Stopping old systemd service (switching to Docker)...")
+    exec_cmd("systemctl stop media-downloader-bot || true")
+    exec_cmd("systemctl disable media-downloader-bot || true")
+
+    # 4. Upload files via SFTP
+    print("\n4. Syncing all files to VPS...")
+    exec_cmd(f"mkdir -p {REMOTE_APP_DIR} {REMOTE_APP_DIR}/downloads")
     sftp = ssh.open_sftp()
     for filename in FILES_TO_SYNC:
         local_path = os.path.join(LOCAL_DIR, filename)
@@ -67,22 +86,22 @@ def run_sync(commit_msg="Update bot"):
             print(f"   -> Uploaded {filename}")
     sftp.close()
 
-    # Restart service on VPS
-    print("\n4. Restarting bot service on VPS...")
-    stdin, stdout, stderr = ssh.exec_command(
-        f"cd {REMOTE_APP_DIR} && "
-        f"./venv/bin/pip install --no-cache-dir -r requirements.txt beautifulsoup4 > /dev/null 2>&1 && "
-        f"systemctl restart media-downloader-bot && "
-        f"sleep 2 && "
-        f"systemctl status media-downloader-bot --no-pager"
-    )
-    output = stdout.read().decode('utf-8', errors='ignore')
-    print("\n[VPS Status]:")
-    print(output.strip())
+    # 5. Build and run Docker container
+    print("\n5. Building and starting Docker container...")
+    exec_cmd(f"cd {REMOTE_APP_DIR} && docker compose up -d --build")
+
+    time.sleep(3)
+
+    # 6. Verify Docker container status
+    print("\n6. Verifying Docker container state...")
+    exec_cmd("docker ps --filter name=telegram-media-bot")
+    exec_cmd("docker logs --tail 20 telegram-media-bot")
 
     ssh.close()
-    print("\n🎉 Deployment complete! Your bot is live on VPS with the latest code.")
+    print("\n==========================================")
+    print("🎉 Docker Container is UP & RUNNING on your VPS Dashboard!")
+    print("==========================================")
 
 if __name__ == "__main__":
-    msg = sys.argv[1] if len(sys.argv) > 1 else "Auto update"
-    run_sync(msg)
+    msg = sys.argv[1] if len(sys.argv) > 1 else "Deploy docker container"
+    deploy_docker(msg)
