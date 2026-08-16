@@ -62,7 +62,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• 🐦 <b>Twitter / X</b>\n"
         "• 📌 <b>Pinterest</b>\n\n"
         "🚀 <b>ব্যবহার করার নিয়ম:</b>\n"
-        "সরাসরি যেকোনো পোস্ট বা ভিডিওর লিঙ্ক এখানে মেসেজ হিসেবে পাঠিয়ে দিন!"
+        "সরাসরি যেকোনো পোস্ট বা ভিডিওর লিঙ্ক এখানে মেসেজ হিসেবে পাঠিয়ে দিন!\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "👨‍💻 <b>Developed by Emon</b>"
     )
     await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
 
