@@ -24,7 +24,7 @@ from telegram.ext import (
     filters,
 )
 
-from config import BOT_TOKEN, MAX_FILE_SIZE
+from config import BOT_TOKEN, MAX_FILE_SIZE, TELEGRAM_UPLOAD_LIMIT
 from downloader import (
     extract_url,
     clean_url,
@@ -45,6 +45,43 @@ logger = logging.getLogger(__name__)
 
 # Temporary in-memory cache for pending URLs per user/message
 PENDING_URLS = {}
+
+import math
+
+async def split_media_async(file_path: str, duration: float, is_audio: bool = False, max_bytes: int = 47 * 1024 * 1024) -> list:
+    """Splits media into parts under max_bytes using fast ffmpeg stream copy."""
+    file_size = os.path.getsize(file_path)
+    if file_size <= max_bytes:
+        return [file_path]
+    
+    num_parts = math.ceil(file_size / max_bytes)
+    part_duration = duration / num_parts if duration > 0 else 300
+    
+    parts = []
+    base, ext = os.path.splitext(file_path)
+    
+    for i in range(num_parts):
+        start_time = i * part_duration
+        out_part = f"{base}_part{i+1}{ext}"
+        cmd = [
+            "ffmpeg", "-y",
+            "-ss", str(start_time),
+            "-i", file_path,
+            "-t", str(part_duration),
+            "-c", "copy",
+            "-avoid_negative_ts", "make_zero",
+            out_part
+        ]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL
+        )
+        await proc.communicate()
+        if os.path.exists(out_part) and os.path.getsize(out_part) > 0:
+            parts.append(out_part)
+            
+    return parts if parts else [file_path]
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /start command."""
@@ -290,9 +327,20 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ ফাইলটি ডাউনলোড করা সম্ভব হয়নি। লিঙ্কটি প্রাইভেট বা অবৈধ হতে পারে।")
             return
 
-        # Auto-compress with FFmpeg if video is slightly over 50MB (50MB - 90MB)
-        if filesize > MAX_FILE_SIZE and not is_audio and filesize <= 90 * 1024 * 1024:
-            await query.edit_message_text("⚡ ফাইল সাইজ অপ্টিমাইজ করা হচ্ছে (৫০ MB এর মধ্যে আনা হচ্ছে)...")
+        # Check 500 MB hard limit
+        if filesize > MAX_FILE_SIZE:
+            size_mb = round(filesize / (1024 * 1024), 2)
+            await query.edit_message_text(
+                f"⚠️ <b>ফাইল সাইজ বেশি বড় ({size_mb} MB)!</b>\n\n"
+                f"বটের সর্বোচ্চ ডাউনলোড লিমিট <b>500 MB</b>।\n"
+                f"💡 দয়া করে কম রেজোলিউশন বা অডিও সিলেক্ট করুন।",
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        # Auto-compress with FFmpeg if video is between 50MB and 120MB and duration <= 15 mins
+        if filesize > TELEGRAM_UPLOAD_LIMIT and not is_audio and filesize <= 120 * 1024 * 1024 and duration <= 900:
+            await query.edit_message_text("⚡ ফাইল সাইজ অপ্টিমাইজ করা হচ্ছে (একক ফাইলে আনা হচ্ছে)...")
             compressed_path = file_path.replace(".mp4", "_opt.mp4")
             target_kbits = int((45 * 8192) / max(duration, 1)) if duration > 0 else 1000
             target_kbits = max(min(target_kbits, 1800), 400)
@@ -308,80 +356,80 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     stderr=asyncio.subprocess.DEVNULL
                 )
                 await proc.communicate()
-                if os.path.exists(compressed_path) and os.path.getsize(compressed_path) <= MAX_FILE_SIZE:
+                if os.path.exists(compressed_path) and os.path.getsize(compressed_path) <= TELEGRAM_UPLOAD_LIMIT:
                     cleanup_file(file_path)
                     file_path = compressed_path
                     filesize = os.path.getsize(file_path)
             except Exception as comp_err:
                 logger.warning(f"Compression failed: {comp_err}")
 
-        if filesize > MAX_FILE_SIZE:
-            size_mb = round(filesize / (1024 * 1024), 2)
-            retry_keyboard = InlineKeyboardMarkup([
-                [
-                    InlineKeyboardButton("🎬 720p HD", callback_data="vid_720"),
-                    InlineKeyboardButton("🎬 480p", callback_data="vid_480"),
-                    InlineKeyboardButton("🎬 360p", callback_data="vid_360"),
-                ],
-                [
-                    InlineKeyboardButton("🎵 MP3 Audio (অডিও)", callback_data="aud_mp3"),
-                ]
-            ])
-            await query.edit_message_text(
-                f"⚠️ <b>ফাইল সাইজ বেশি বড় ({size_mb} MB)!</b>\n\n"
-                f"টেলিগ্রাম বটের স্ট্যান্ডার্ড লিমিট সর্বোচ্চ <b>50 MB</b>।\n"
-                f"💡 নিচে থেকে কম রেজোলিউশন বা অডিও সিলেক্ট করুন:",
-                reply_markup=retry_keyboard,
-                parse_mode=ParseMode.HTML
-            )
-            return
-
-        # Notify user that upload started
-        await query.edit_message_text("📤 টেলিগ্রামে আপলোড হচ্ছে... দয়া করে অপেক্ষা করুন।")
+        # Split into parts if still > TELEGRAM_UPLOAD_LIMIT (up to 500 MB)
+        files_to_send = [file_path]
+        extra_cleanup = []
+        if filesize > TELEGRAM_UPLOAD_LIMIT:
+            await query.edit_message_text("✂️ ফাইলটি টেলিগ্রামের সুবিধার জন্য পার্টে প্রস্তুত করা হচ্ছে...")
+            split_parts = await split_media_async(file_path, duration, is_audio=is_audio, max_bytes=TELEGRAM_UPLOAD_LIMIT)
+            if len(split_parts) > 1:
+                files_to_send = split_parts
+                extra_cleanup = split_parts
 
         quality_label = "MP3 Audio" if is_audio else f"{quality}p HD"
         title_safe = html.escape(title[:200])
         bot_info = await context.bot.get_me()
         bot_username = bot_info.username if bot_info and bot_info.username else "MediaBot"
-        caption = f"🎬 <b>{title_safe}</b>\n\n📊 কোয়ালিটি: <b>{quality_label}</b>\n✨ @{bot_username}"
 
-        if is_audio:
-            await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.UPLOAD_VOICE)
-            with open(file_path, 'rb') as f:
-                await context.bot.send_audio(
-                    chat_id=query.message.chat_id,
-                    audio=f,
-                    title=title,
-                    duration=int(duration),
-                    caption=caption,
-                    parse_mode=ParseMode.HTML,
-                    read_timeout=300,
-                    write_timeout=300
-                )
-        elif ext in ['jpg', 'jpeg', 'png', 'webp']:
-            await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.UPLOAD_PHOTO)
-            with open(file_path, 'rb') as f:
-                await context.bot.send_photo(
-                    chat_id=query.message.chat_id,
-                    photo=f,
-                    caption=caption,
-                    parse_mode=ParseMode.HTML,
-                    read_timeout=300,
-                    write_timeout=300
-                )
-        else:
-            await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.UPLOAD_VIDEO)
-            with open(file_path, 'rb') as f:
-                await context.bot.send_video(
-                    chat_id=query.message.chat_id,
-                    video=f,
-                    duration=int(duration),
-                    caption=caption,
-                    supports_streaming=True,
-                    parse_mode=ParseMode.HTML,
-                    read_timeout=300,
-                    write_timeout=300
-                )
+        total_parts = len(files_to_send)
+        for idx, send_file in enumerate(files_to_send):
+            part_num = idx + 1
+            if total_parts > 1:
+                part_info = f" (পার্ট {part_num}/{total_parts})"
+                await query.edit_message_text(f"📤 টেলিগ্রামে আপলোড হচ্ছে... {part_info}")
+            else:
+                part_info = ""
+                await query.edit_message_text("📤 টেলিগ্রামে আপলোড হচ্ছে... দয়া করে অপেক্ষা করুন।")
+
+            caption = f"🎬 <b>{title_safe}</b>{part_info}\n\n📊 কোয়ালিটি: <b>{quality_label}</b>\n✨ @{bot_username}"
+
+            if is_audio:
+                await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.UPLOAD_VOICE)
+                with open(send_file, 'rb') as f:
+                    await context.bot.send_audio(
+                        chat_id=query.message.chat_id,
+                        audio=f,
+                        title=f"{title}{part_info}",
+                        duration=int(duration / total_parts) if duration else None,
+                        caption=caption,
+                        parse_mode=ParseMode.HTML,
+                        read_timeout=300,
+                        write_timeout=300
+                    )
+            elif ext in ['jpg', 'jpeg', 'png', 'webp']:
+                await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.UPLOAD_PHOTO)
+                with open(send_file, 'rb') as f:
+                    await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=f,
+                        caption=caption,
+                        parse_mode=ParseMode.HTML,
+                        read_timeout=300,
+                        write_timeout=300
+                    )
+            else:
+                await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.UPLOAD_VIDEO)
+                with open(send_file, 'rb') as f:
+                    await context.bot.send_video(
+                        chat_id=query.message.chat_id,
+                        video=f,
+                        duration=int(duration / total_parts) if duration else None,
+                        caption=caption,
+                        supports_streaming=True,
+                        parse_mode=ParseMode.HTML,
+                        read_timeout=300,
+                        write_timeout=300
+                    )
+
+        if extra_cleanup:
+            cleanup_files(extra_cleanup)
 
         # Cleanup status message
         await query.delete_message()
