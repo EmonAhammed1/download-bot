@@ -101,7 +101,7 @@ async def get_media_info(req: InfoRequest):
     extracted_url = extract_url(req.url)
     if not extracted_url:
         debugPrint(f"API ERROR: Invalid URL '{req.url}'")
-        raise HTTPException(status_code=400, detail="দয়া করে একটি সঠিক মিডিয়া লিঙ্ক প্রদান করুন।")
+        raise HTTPException(status_code=400, detail="Please provide a valid media URL.")
 
     try:
         data = await extract_media_info(extracted_url)
@@ -110,7 +110,7 @@ async def get_media_info(req: InfoRequest):
     except Exception as e:
         logger.error(f"Error in /api/info: {e}", exc_info=True)
         debugPrint(f"API ERROR: /api/info exception: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"মেটাডেটা লোড করতে ব্যর্থ হয়েছে: {str(e)[:100]}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch media metadata: {str(e)[:100]}")
 
 @app.post("/api/download")
 async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks):
@@ -119,7 +119,7 @@ async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks
     
     extracted_url = extract_url(req.url)
     if not extracted_url:
-        raise HTTPException(status_code=400, detail="সঠিক লিঙ্ক পাওয়া যায়নি।")
+        raise HTTPException(status_code=400, detail="Invalid media URL provided.")
 
     try:
         # Check if requested format is album
@@ -127,7 +127,7 @@ async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks
             img_result = await download_images(extracted_url)
             paths = img_result.get('image_paths', [])
             if not paths:
-                raise HTTPException(status_code=404, detail="ছবি পাওয়া যায়নি।")
+                raise HTTPException(status_code=404, detail="No photos found.")
             
             # Return image URLs
             # For multiple images, we can package or return first
@@ -155,7 +155,7 @@ async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks
         
         if not file_path or not os.path.exists(file_path):
             debugPrint(f"API ERROR: File not generated for {extracted_url}")
-            raise HTTPException(status_code=500, detail="মিডিয়া ডাউনলোড ব্যর্থ হয়েছে।")
+            raise HTTPException(status_code=500, detail="Media download failed. Please try again.")
 
         file_size = os.path.getsize(file_path)
         file_id = uuid.uuid4().hex[:12]
@@ -187,30 +187,33 @@ async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks
     except Exception as e:
         logger.error(f"Download error: {e}", exc_info=True)
         debugPrint(f"API ERROR: /api/download failed: {e}")
-        raise HTTPException(status_code=500, detail=f"ডাউনলোডে সমস্যা হয়েছে: {str(e)[:150]}")
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)[:150]}")
 
 async def cleanup_after_download(file_path: str, file_id: str, delay_seconds: int = 180):
     """Wait for browser download to finish, then safely delete temporary file."""
-    await asyncio.sleep(delay_seconds)
-    cleanup_file(file_path)
-    ACTIVE_DOWNLOADS.pop(file_id, None)
-    debugPrint(f"CLEANUP: Deleted temporary file {file_path}")
+    try:
+        await asyncio.sleep(delay_seconds)
+        cleanup_file(file_path)
+        ACTIVE_DOWNLOADS.pop(file_id, None)
+        debugPrint(f"CLEANUP: Deleted temporary file {file_path}")
+    except Exception as e:
+        logger.error(f"Cleanup error: {e}")
 
 @app.api_route("/api/file/{file_id}", methods=["GET", "HEAD"])
-async def serve_file(file_id: str, background_tasks: BackgroundTasks):
+async def serve_file(file_id: str):
     """Direct stream/download endpoint with full support for browser download managers."""
     debugPrint(f"API HIT: /api/file/{file_id}")
     
     entry = ACTIVE_DOWNLOADS.get(file_id)
     if not entry or not os.path.exists(entry["file_path"]):
         debugPrint(f"API ERROR: file_id {file_id} not found or expired")
-        raise HTTPException(status_code=404, detail="ফাইলটির মেয়াদ শেষ হয়ে গেছে বা পাওয়া যায়নি।")
+        raise HTTPException(status_code=404, detail="File has expired or was not found.")
 
     file_path = entry["file_path"]
     filename = entry["filename"]
 
-    # Schedule background cleanup after 3 minutes so multiple browser threads / IDM can complete
-    background_tasks.add_task(cleanup_after_download, file_path, file_id, 180)
+    # Schedule background cleanup decoupled from FastAPI shutdown
+    asyncio.create_task(cleanup_after_download(file_path, file_id, 180))
 
     debugPrint(f"STREAMING: Serving {filename} to client")
     return FileResponse(

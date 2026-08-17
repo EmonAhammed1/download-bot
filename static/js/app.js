@@ -1,5 +1,5 @@
 /**
- * Universal Media Downloader - Client Logic
+ * Universal Media Downloader - Client Logic (English)
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -34,11 +34,11 @@ document.addEventListener('DOMContentLoaded', () => {
           urlInput.value = text.trim();
           fetchMediaInfo(text.trim());
         } else {
-          showToast('ক্লিপবোর্ডে কোনো সঠিক লিঙ্ক পাওয়া যায়নি।');
+          showToast('No valid URL found in clipboard.');
         }
       } catch (err) {
         urlInput.focus();
-        showToast('ব্রাউজারের পেস্ট পারমিশন দিন বা লিঙ্কটি টাইপ করুন।');
+        showToast('Please allow clipboard access or type the link.');
       }
     });
   }
@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     searchBtn.addEventListener('click', () => {
       const url = urlInput.value.trim();
       if (!url) {
-        showToast('দয়া করে একটি লিঙ্ক পেস্ট করুন!');
+        showToast('Please enter a video or post link!');
         return;
       }
       fetchMediaInfo(url);
@@ -81,14 +81,14 @@ document.addEventListener('DOMContentLoaded', () => {
       shimmerCard.style.display = 'none';
 
       if (!response.ok || data.status === 'error') {
-        showToast(data.error || data.detail || 'লিঙ্কটি থেকে তথ্য আনা সম্ভব হয়নি।');
+        showToast(data.error || data.detail || 'Could not fetch media details.');
         return;
       }
 
       renderMediaResult(data);
     } catch (err) {
       shimmerCard.style.display = 'none';
-      showToast('সার্ভারের সাথে যোগাযোগ করতে ব্যর্থ হয়েছে।');
+      showToast('Failed to connect to the server.');
     }
   }
 
@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="format-label">${fmt.label}</span>
           <span class="format-badge ${badgeClass}">${badgeText}</span>
         </div>
-        <span class="format-sub">${fmt.type === 'audio' ? 'High Quality Audio' : 'Direct Stream / Video MP4'}</span>
+        <span class="format-sub">${fmt.type === 'audio' ? 'High Quality Audio (320kbps)' : 'Direct Stream / Video MP4'}</span>
       `;
 
       btn.addEventListener('click', () => {
@@ -155,8 +155,8 @@ document.addEventListener('DOMContentLoaded', () => {
   async function startDownload(quality, isAudio) {
     downloadStatus.style.display = 'block';
     statusLabel.textContent = isAudio
-      ? '⚡ অডিও প্রসেস ও কনভার্ট করা হচ্ছে...'
-      : `⚡ ভিডিও (${quality}p) ডাউনলোড ও প্রস্তুত করা হচ্ছে...`;
+      ? '⚡ Processing & converting audio...'
+      : `⚡ Downloading & preparing video (${quality}p)...`;
     
     downloadStatus.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
@@ -174,12 +174,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const resData = await response.json();
 
       if (!response.ok || resData.status !== 'ready') {
-        showToast(resData.detail || 'ডাউনলোডে সমস্যা হয়েছে।');
+        showToast(resData.detail || 'Download failed.');
         downloadStatus.style.display = 'none';
         return;
       }
 
-      statusLabel.textContent = `✅ ডাউনলোড প্রস্তুত! (${resData.filesize_mb || '0'} MB) ব্রাউজারে নামছে...`;
+      statusLabel.textContent = `✅ Ready! (${resData.filesize_mb || '0'} MB) Starting download...`;
 
       // Trigger standard browser download
       const downloadLink = document.createElement('a');
@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     } catch (err) {
       downloadStatus.style.display = 'none';
-      showToast('ডাউনলোড প্রক্রিয়ায় ত্রুটি হয়েছে।');
+      showToast('Error occurred while downloading.');
     }
   }
 });
