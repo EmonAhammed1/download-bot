@@ -150,11 +150,6 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
             'quiet': True,
             'no_warnings': True,
             'http_headers': DEFAULT_HEADERS,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web']
-                }
-            },
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -177,11 +172,6 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
             'quiet': True,
             'no_warnings': True,
             'http_headers': DEFAULT_HEADERS,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web']
-                }
-            },
         }
 
     if os.path.exists(COOKIE_FILE):

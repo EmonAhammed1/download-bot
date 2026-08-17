@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   telegram-media-bot:
     container_name: telegram-media-bot
@@ -9,3 +7,4 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./downloads:/app/downloads
+      - ./cookies.txt:/app/cookies.txt
