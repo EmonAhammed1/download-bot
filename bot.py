@@ -290,12 +290,48 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text("❌ ফাইলটি ডাউনলোড করা সম্ভব হয়নি। লিঙ্কটি প্রাইভেট বা অবৈধ হতে পারে।")
             return
 
+        # Auto-compress with FFmpeg if video is slightly over 50MB (50MB - 90MB)
+        if filesize > MAX_FILE_SIZE and not is_audio and filesize <= 90 * 1024 * 1024:
+            await query.edit_message_text("⚡ ফাইল সাইজ অপ্টিমাইজ করা হচ্ছে (৫০ MB এর মধ্যে আনা হচ্ছে)...")
+            compressed_path = file_path.replace(".mp4", "_opt.mp4")
+            target_kbits = int((45 * 8192) / max(duration, 1)) if duration > 0 else 1000
+            target_kbits = max(min(target_kbits, 1800), 400)
+            
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg", "-y", "-i", file_path,
+                    "-c:v", "libx264", "-b:v", f"{target_kbits}k",
+                    "-preset", "veryfast",
+                    "-c:a", "aac", "-b:a", "128k",
+                    compressed_path,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL
+                )
+                await proc.communicate()
+                if os.path.exists(compressed_path) and os.path.getsize(compressed_path) <= MAX_FILE_SIZE:
+                    cleanup_file(file_path)
+                    file_path = compressed_path
+                    filesize = os.path.getsize(file_path)
+            except Exception as comp_err:
+                logger.warning(f"Compression failed: {comp_err}")
+
         if filesize > MAX_FILE_SIZE:
             size_mb = round(filesize / (1024 * 1024), 2)
+            retry_keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🎬 720p HD", callback_data="vid_720"),
+                    InlineKeyboardButton("🎬 480p", callback_data="vid_480"),
+                    InlineKeyboardButton("🎬 360p", callback_data="vid_360"),
+                ],
+                [
+                    InlineKeyboardButton("🎵 MP3 Audio (অডিও)", callback_data="aud_mp3"),
+                ]
+            ])
             await query.edit_message_text(
                 f"⚠️ <b>ফাইল সাইজ বেশি বড় ({size_mb} MB)!</b>\n\n"
-                f"টেলিগ্রাম বটের লিমিট সর্বোচ্চ <b>50 MB</b>।\n"
-                f"💡 দয়া করে কম রেজোলিউশন (যেমন: 720p, 480p বা 360p) নির্বাচন করুন।",
+                f"টেলিগ্রাম বটের স্ট্যান্ডার্ড লিমিট সর্বোচ্চ <b>50 MB</b>।\n"
+                f"💡 নিচে থেকে কম রেজোলিউশন বা অডিও সিলেক্ট করুন:",
+                reply_markup=retry_keyboard,
                 parse_mode=ParseMode.HTML
             )
             return
