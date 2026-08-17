@@ -294,12 +294,12 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             size_mb = round(filesize / (1024 * 1024), 2)
             retry_keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("🎬 720p HD", callback_data="vid_720"),
-                    InlineKeyboardButton("🎬 480p", callback_data="vid_480"),
-                    InlineKeyboardButton("🎬 360p", callback_data="vid_360"),
+                    InlineKeyboardButton("🎬 720p HD", callback_data=f"vid_720:{cache_key}"),
+                    InlineKeyboardButton("🎬 480p", callback_data=f"vid_480:{cache_key}"),
+                    InlineKeyboardButton("🎬 360p", callback_data=f"vid_360:{cache_key}"),
                 ],
                 [
-                    InlineKeyboardButton("🎵 MP3 Audio (অডিও)", callback_data="aud_mp3"),
+                    InlineKeyboardButton("🎵 MP3 Audio (অডিও)", callback_data=f"aud_mp3:{cache_key}"),
                 ]
             ])
             await query.edit_message_text(
@@ -309,6 +309,9 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=retry_keyboard,
                 parse_mode=ParseMode.HTML
             )
+            # Keep cache_key in PENDING_URLS so retry buttons work
+            if file_path:
+                cleanup_file(file_path)
             return
 
         # Notify user that upload started
@@ -360,6 +363,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Cleanup status message
         await query.delete_message()
+        PENDING_URLS.pop(cache_key, None)
 
     except Exception as e:
         logger.error(f"Error handling media: {e}", exc_info=True)
@@ -369,11 +373,11 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "দয়া করে নিশ্চিত করুন লিঙ্কটি পাবলিক ও অ্যাক্সেসযোগ্য।",
             parse_mode=ParseMode.HTML
         )
+        PENDING_URLS.pop(cache_key, None)
     finally:
         # Always clean up local storage
         if file_path:
             cleanup_file(file_path)
-        PENDING_URLS.pop(cache_key, None)
 
 def main():
     """Start the bot."""

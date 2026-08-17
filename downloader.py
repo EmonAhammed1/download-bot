@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import time
+import shutil
 import asyncio
 import logging
 import requests
@@ -139,6 +140,7 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
                     }
 
     COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
+    temp_cookie = None
     
     # 2. General yt-dlp extraction
     file_prefix = os.path.join(DOWNLOAD_DIR, f"{uuid.uuid4().hex[:8]}_%(epoch)s")
@@ -149,7 +151,6 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
-            'http_headers': DEFAULT_HEADERS,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -171,44 +172,52 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
-            'http_headers': DEFAULT_HEADERS,
         }
 
     if os.path.exists(COOKIE_FILE):
-        ydl_opts['cookiefile'] = COOKIE_FILE
+        temp_cookie = os.path.join(DOWNLOAD_DIR, f"cookie_{uuid.uuid4().hex[:8]}.txt")
+        shutil.copyfile(COOKIE_FILE, temp_cookie)
+        ydl_opts['cookiefile'] = temp_cookie
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(target_url, download=True)
-        filename = ydl.prepare_filename(info)
-        
-        if is_audio:
-            base_name, _ = os.path.splitext(filename)
-            filename = f"{base_name}.mp3"
-        elif not os.path.exists(filename):
-            base_name, _ = os.path.splitext(filename)
-            if os.path.exists(f"{base_name}.mp4"):
-                filename = f"{base_name}.mp4"
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(target_url, download=True)
+            filename = ydl.prepare_filename(info)
+            
+            if is_audio:
+                base_name, _ = os.path.splitext(filename)
+                filename = f"{base_name}.mp3"
+            elif not os.path.exists(filename):
+                base_name, _ = os.path.splitext(filename)
+                if os.path.exists(f"{base_name}.mp4"):
+                    filename = f"{base_name}.mp4"
 
-        # Check if actual file exists
-        if not os.path.exists(filename):
-            prefix_match = os.path.basename(file_prefix).split("%")[0]
-            for f in os.listdir(DOWNLOAD_DIR):
-                if f.startswith(prefix_match):
-                    filename = os.path.join(DOWNLOAD_DIR, f)
-                    break
+            # Check if actual file exists
+            if not os.path.exists(filename):
+                prefix_match = os.path.basename(file_prefix).split("%")[0]
+                for f in os.listdir(DOWNLOAD_DIR):
+                    if f.startswith(prefix_match):
+                        filename = os.path.join(DOWNLOAD_DIR, f)
+                        break
 
-        file_size = os.path.getsize(filename) if os.path.exists(filename) else 0
+            file_size = os.path.getsize(filename) if os.path.exists(filename) else 0
 
-        return {
-            'file_path': filename,
-            'title': info.get('title', 'Media'),
-            'duration': info.get('duration', 0),
-            'thumbnail': info.get('thumbnail', None),
-            'filesize': file_size,
-            'is_audio': is_audio,
-            'quality': quality if not is_audio else 'MP3',
-            'ext': os.path.splitext(filename)[1].replace('.', '').lower() if filename else 'mp4'
-        }
+            return {
+                'file_path': filename,
+                'title': info.get('title', 'Media'),
+                'duration': info.get('duration', 0),
+                'thumbnail': info.get('thumbnail', None),
+                'filesize': file_size,
+                'is_audio': is_audio,
+                'quality': quality if not is_audio else 'MP3',
+                'ext': os.path.splitext(filename)[1].replace('.', '').lower() if filename else 'mp4'
+            }
+    finally:
+        if temp_cookie and os.path.exists(temp_cookie):
+            try:
+                os.remove(temp_cookie)
+            except Exception:
+                pass
 
 def download_images_sync(url: str) -> Dict[str, Any]:
     """Download images/photos from Instagram, Facebook, Pinterest, Twitter, etc."""
