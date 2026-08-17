@@ -105,6 +105,111 @@ def extract_instagram_graphql(shortcode: str) -> Optional[Dict[str, Any]]:
         logger.error(f"Instagram GraphQL query error for shortcode {shortcode}: {e}")
     return None
 
+def extract_media_info_sync(url: str) -> Dict[str, Any]:
+    """Extract media metadata (title, thumbnail, duration, available qualities) without downloading."""
+    target_url = clean_url(url)
+    platform = get_platform_name(target_url)
+    
+    # 1. Instagram GraphQL quick check
+    ig_match = re.search(r'instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)', target_url)
+    if ig_match:
+        shortcode = ig_match.group(1)
+        ig_data = extract_instagram_graphql(shortcode)
+        if ig_data:
+            is_video = ig_data.get('is_video', False)
+            caption_edges = ig_data.get('edge_media_to_caption', {}).get('edges', [])
+            title = caption_edges[0].get('node', {}).get('text', 'Instagram Post') if caption_edges else 'Instagram Post'
+            thumb = ig_data.get('display_url')
+            duration = ig_data.get('video_duration', 0)
+            
+            # Check if carousel
+            children = ig_data.get('edge_sidecar_to_children', {}).get('edges', [])
+            if children and not is_video:
+                photos = [c.get('node', {}).get('display_url') for c in children if c.get('node', {}).get('display_url')]
+                return {
+                    'status': 'success',
+                    'platform': 'Instagram',
+                    'title': title[:120],
+                    'thumbnail': thumb,
+                    'is_album': True,
+                    'photo_count': len(photos),
+                    'photos': photos,
+                    'formats': [{'id': 'album', 'label': f'🖼️ Download All ({len(photos)} Photos)', 'type': 'album'}]
+                }
+            
+            formats = [
+                {'id': '1080', 'label': '1080p Full HD', 'type': 'video'},
+                {'id': '720', 'label': '720p HD', 'type': 'video'},
+                {'id': 'MP3', 'label': 'MP3 Audio (320kbps)', 'type': 'audio'},
+            ] if is_video else [{'id': 'img', 'label': 'Download High-Res Photo', 'type': 'image'}]
+            
+            return {
+                'status': 'success',
+                'platform': 'Instagram',
+                'title': title[:120],
+                'thumbnail': thumb,
+                'duration': int(duration),
+                'is_album': False,
+                'formats': formats
+            }
+
+    # 2. General yt-dlp metadata extraction
+    COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
+    temp_cookie = None
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,
+    }
+    if os.path.exists(COOKIE_FILE):
+        temp_cookie = os.path.join(DOWNLOAD_DIR, f"info_cookie_{uuid.uuid4().hex[:8]}.txt")
+        shutil.copyfile(COOKIE_FILE, temp_cookie)
+        ydl_opts['cookiefile'] = temp_cookie
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(target_url, download=False)
+            title = info.get('title', 'Media')
+            thumb = info.get('thumbnail')
+            duration = info.get('duration', 0)
+            
+            # Format list
+            formats = [
+                {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD'},
+                {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD'},
+                {'id': '480', 'label': '🎬 480p SD', 'type': 'video', 'badge': 'SD'},
+                {'id': '360', 'label': '🎬 360p Fast', 'type': 'video', 'badge': 'Fast'},
+                {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio'},
+            ]
+            
+            return {
+                'status': 'success',
+                'platform': platform.replace(' 🔴', '').replace(' 📸', '').replace(' 🔵', '').replace(' 🎵', '').replace(' 🐦', '').replace(' 📌', '').replace(' 🌐', ''),
+                'title': title,
+                'thumbnail': thumb,
+                'duration': int(duration) if duration else 0,
+                'formats': formats
+            }
+    except Exception as e:
+        logger.error(f"Metadata extraction failed: {e}")
+        return {
+            'status': 'error',
+            'error': str(e)[:200],
+            'platform': platform,
+            'title': 'Media',
+            'formats': [
+                {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD'},
+                {'id': '480', 'label': '🎬 480p SD', 'type': 'video', 'badge': 'SD'},
+                {'id': 'MP3', 'label': '🎵 MP3 Audio', 'type': 'audio', 'badge': 'Audio'}
+            ]
+        }
+    finally:
+        if temp_cookie and os.path.exists(temp_cookie):
+            try:
+                os.remove(temp_cookie)
+            except Exception:
+                pass
+
 def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") -> Dict[str, Any]:
     """Download video with selected quality (1080, 720, 480, 360) or audio using yt-dlp / direct API."""
     target_url = clean_url(url)
@@ -347,6 +452,10 @@ def download_images_sync(url: str) -> Dict[str, Any]:
         'title': title[:150],
         'count': len(downloaded_files)
     }
+
+async def extract_media_info(url: str) -> Dict[str, Any]:
+    """Async wrapper around extract_media_info_sync."""
+    return await asyncio.to_thread(extract_media_info_sync, url)
 
 async def download_media(url: str, is_audio: bool = False, quality: str = "720") -> Dict[str, Any]:
     """Async wrapper around download_media_sync."""
