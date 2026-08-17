@@ -27,6 +27,7 @@ FILES_TO_SYNC = [
     "Dockerfile",
     "docker-compose.yml",
     "README.md",
+    "cookies.txt",
 ]
 
 def deploy_docker(commit_msg="Update bot"):
