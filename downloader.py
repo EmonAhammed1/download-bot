@@ -465,6 +465,201 @@ async def download_images(url: str) -> Dict[str, Any]:
     """Async wrapper around download_images_sync."""
     return await asyncio.to_thread(download_images_sync, url)
 
+# ---------------------------------------------------------------------------
+# Direct URL Extraction — No disk storage, browser downloads from CDN directly
+# ---------------------------------------------------------------------------
+
+# Platforms where a plain browser can fetch the CDN URL without extra headers
+DIRECT_REDIRECT_PLATFORMS = ("instagram.com", "tiktok.com", "twitter.com", "x.com", "pinterest.com", "pin.it")
+
+def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = False) -> Dict[str, Any]:
+    """
+    Extract the direct CDN media URL without downloading anything to disk.
+
+    Returns a dict:
+      {
+        'mode':        'redirect' | 'stream' | 'images',
+        'direct_url':  str | None,          # single video/audio URL
+        'image_urls':  List[str] | None,    # for photo carousels
+        'title':       str,
+        'ext':         str,
+        'filesize':    int | None,          # may be None if unknown
+        'headers':     dict,               # headers browser should send (empty for redirect)
+        'error':       str | None,
+      }
+    """
+    target_url = clean_url(url)
+    url_lower = target_url.lower()
+
+    # ------------------------------------------------------------------
+    # 1. Instagram — use GraphQL to get direct CDN URL (no yt-dlp needed)
+    # ------------------------------------------------------------------
+    ig_match = re.search(r'instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)', target_url)
+    if ig_match:
+        shortcode = ig_match.group(1)
+        ig_data = extract_instagram_graphql(shortcode)
+        if ig_data:
+            caption_edges = ig_data.get('edge_media_to_caption', {}).get('edges', [])
+            title = caption_edges[0].get('node', {}).get('text', 'Instagram Post') if caption_edges else 'Instagram Post'
+            is_video = ig_data.get('is_video', False)
+
+            if is_video and not is_audio:
+                video_url = ig_data.get('video_url')
+                if video_url:
+                    return {
+                        'mode': 'redirect',
+                        'direct_url': video_url,
+                        'image_urls': None,
+                        'title': title[:150],
+                        'ext': 'mp4',
+                        'filesize': None,
+                        'headers': {},
+                        'error': None,
+                    }
+
+            # Carousel or single photo
+            children = ig_data.get('edge_sidecar_to_children', {}).get('edges', [])
+            if children:
+                image_urls = [c.get('node', {}).get('display_url') for c in children if c.get('node', {}).get('display_url')]
+                return {
+                    'mode': 'images',
+                    'direct_url': None,
+                    'image_urls': image_urls,
+                    'title': title[:150],
+                    'ext': 'jpg',
+                    'filesize': None,
+                    'headers': {},
+                    'error': None,
+                }
+            display_url = ig_data.get('display_url')
+            if display_url:
+                return {
+                    'mode': 'redirect',
+                    'direct_url': display_url,
+                    'image_urls': None,
+                    'title': title[:150],
+                    'ext': 'jpg',
+                    'filesize': None,
+                    'headers': {},
+                    'error': None,
+                }
+
+    # ------------------------------------------------------------------
+    # 2. yt-dlp metadata extraction (no download) for all other platforms
+    # ------------------------------------------------------------------
+    COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
+    temp_cookie = None
+
+    height = quality if quality in ["1080", "720", "480", "360"] else "720"
+    if is_audio:
+        fmt = "bestaudio/best"
+    else:
+        fmt = (
+            f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/'
+            f'bestvideo[height<={height}]+bestaudio/'
+            f'best[height<={height}][ext=mp4]/'
+            f'best[height<={height}]/'
+            f'best'
+        )
+
+    ydl_opts = {
+        'format': fmt,
+        'quiet': True,
+        'no_warnings': True,
+        'skip_download': True,   # ← key: metadata only, no file written
+        'noplaylist': True,
+    }
+
+    if os.path.exists(COOKIE_FILE):
+        temp_cookie = os.path.join(DOWNLOAD_DIR, f"dc_cookie_{uuid.uuid4().hex[:8]}.txt")
+        shutil.copyfile(COOKIE_FILE, temp_cookie)
+        ydl_opts['cookiefile'] = temp_cookie
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(target_url, download=False)
+
+        if not info:
+            return {'mode': 'stream', 'direct_url': None, 'image_urls': None,
+                    'title': 'Media', 'ext': 'mp4', 'filesize': None, 'headers': {}, 'error': 'No info extracted'}
+
+        title = info.get('title', 'Media')
+
+        # Resolve the best format URL
+        formats = info.get('formats') or []
+        chosen = None
+
+        if is_audio:
+            # Pick best audio-only format
+            audio_fmts = [f for f in formats if f.get('vcodec') == 'none' and f.get('url')]
+            if audio_fmts:
+                chosen = max(audio_fmts, key=lambda f: f.get('abr') or 0)
+        else:
+            # Pick best video format that fits requested height
+            h = int(height)
+            video_fmts = [f for f in formats if f.get('url') and (f.get('height') or 0) <= h and f.get('vcodec') != 'none']
+            if video_fmts:
+                chosen = max(video_fmts, key=lambda f: (f.get('height') or 0, f.get('tbr') or 0))
+
+        # Fallback to top-level url
+        direct_url = (chosen or {}).get('url') or info.get('url')
+        ext = (chosen or {}).get('ext') or info.get('ext') or ('mp3' if is_audio else 'mp4')
+        filesize = (chosen or {}).get('filesize') or info.get('filesize')
+        http_headers = (chosen or {}).get('http_headers') or info.get('http_headers') or {}
+
+        # Decide mode:
+        # - Platforms where browser can directly fetch the URL → redirect
+        # - YouTube and others that need auth/special headers → proxy stream
+        is_direct_platform = any(p in url_lower for p in DIRECT_REDIRECT_PLATFORMS)
+        needs_merge = (
+            not is_audio
+            and chosen
+            and chosen.get('vcodec') != 'none'
+            and not chosen.get('acodec', 'none') not in ('none', None)
+        )
+
+        if is_direct_platform and direct_url and not is_audio:
+            mode = 'redirect'
+        else:
+            # YouTube or audio that needs FFmpeg merge → stream through VPS (no disk)
+            mode = 'stream'
+
+        return {
+            'mode': mode,
+            'direct_url': direct_url,
+            'image_urls': None,
+            'title': title[:150],
+            'ext': ext,
+            'filesize': filesize,
+            'headers': http_headers,
+            'error': None,
+        }
+
+    except Exception as e:
+        logger.error(f"extract_direct_url_sync error: {e}")
+        return {
+            'mode': 'stream',
+            'direct_url': None,
+            'image_urls': None,
+            'title': 'Media',
+            'ext': 'mp4',
+            'filesize': None,
+            'headers': {},
+            'error': str(e)[:200],
+        }
+    finally:
+        if temp_cookie and os.path.exists(temp_cookie):
+            try:
+                os.remove(temp_cookie)
+            except Exception:
+                pass
+
+
+async def extract_direct_url(url: str, quality: str = "720", is_audio: bool = False) -> Dict[str, Any]:
+    """Async wrapper around extract_direct_url_sync."""
+    return await asyncio.to_thread(extract_direct_url_sync, url, quality, is_audio)
+
+
 def cleanup_file(filepath: str):
     """Safely delete temporary downloaded file."""
     try:

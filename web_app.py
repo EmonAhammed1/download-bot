@@ -2,9 +2,11 @@ import os
 import sys
 import uuid
 import json
+import time
 import logging
 import asyncio
 from typing import Optional
+import httpx
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +27,7 @@ from downloader import (
     clean_url,
     get_platform_name,
     extract_media_info,
+    extract_direct_url,
     download_media,
     download_images,
     cleanup_file,
@@ -46,6 +49,10 @@ def debugPrint(msg: str):
 # In-memory storage for active download files
 # file_id -> { "file_path": str, "filename": str, "filesize": int }
 ACTIVE_DOWNLOADS = {}
+
+# In-memory storage for proxy stream tokens
+# token -> { "direct_url": str, "headers": dict, "filename": str, "expires": float }
+STREAM_TOKENS: dict = {}
 
 app = FastAPI(
     title="Universal Media Downloader Web",
@@ -78,6 +85,11 @@ class InfoRequest(BaseModel):
     url: str
 
 class DownloadRequest(BaseModel):
+    url: str
+    quality: str = "720"
+    is_audio: bool = False
+
+class DirectRequest(BaseModel):
     url: str
     quality: str = "720"
     is_audio: bool = False
@@ -221,6 +233,142 @@ async def serve_file(file_id: str):
         filename=filename,
         media_type="application/octet-stream"
     )
+
+
+# ===========================================================================
+# NEW: Direct / Proxy-Stream endpoints (no VPS disk storage)
+# ===========================================================================
+
+@app.post("/api/direct")
+async def get_direct_url(req: DirectRequest):
+    """
+    Extract the direct CDN URL for the requested media.
+
+    Response modes:
+      - redirect: { mode, direct_url, title, ext }  — browser opens URL directly
+      - stream:   { mode, stream_url, title, ext }   — browser hits /api/stream/{token}
+      - images:   { mode, image_urls, title }        — list of direct image URLs
+    """
+    debugPrint(f"API HIT: /api/direct | URL: {req.url} | quality: {req.quality} | audio: {req.is_audio}")
+
+    extracted_url = extract_url(req.url)
+    if not extracted_url:
+        raise HTTPException(status_code=400, detail="Invalid media URL provided.")
+
+    try:
+        result = await extract_direct_url(extracted_url, quality=req.quality, is_audio=req.is_audio)
+    except Exception as e:
+        logger.error(f"/api/direct error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to extract media URL: {str(e)[:150]}")
+
+    if result.get('error') and not result.get('direct_url'):
+        raise HTTPException(status_code=500, detail=result['error'])
+
+    mode = result.get('mode', 'stream')
+    title = result.get('title', 'Media')
+    ext   = result.get('ext', 'mp4')
+
+    # Build a safe filename
+    safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:80] or "media"
+    filename = f"{safe_title}.{ext}"
+
+    if mode == 'images':
+        debugPrint(f"/api/direct → images ({len(result.get('image_urls') or [])} URLs)")
+        return JSONResponse({
+            'mode': 'images',
+            'image_urls': result.get('image_urls') or [],
+            'title': title,
+            'filename': filename,
+        })
+
+    if mode == 'redirect':
+        debugPrint(f"/api/direct → redirect | URL: {str(result.get('direct_url'))[:80]}")
+        return JSONResponse({
+            'mode': 'redirect',
+            'direct_url': result.get('direct_url'),
+            'title': title,
+            'ext': ext,
+            'filename': filename,
+        })
+
+    # mode == 'stream' — create a short-lived token for proxy streaming
+    token = uuid.uuid4().hex[:16]
+    STREAM_TOKENS[token] = {
+        'direct_url': result.get('direct_url'),
+        'headers':    result.get('headers') or {},
+        'filename':   filename,
+        'expires':    time.time() + 300,   # 5-minute window
+    }
+    debugPrint(f"/api/direct → stream | token={token} | URL={str(result.get('direct_url'))[:60]}")
+    return JSONResponse({
+        'mode': 'stream',
+        'stream_url': f"/api/stream/{token}",
+        'title': title,
+        'ext': ext,
+        'filename': filename,
+    })
+
+
+@app.get("/api/stream/{token}")
+async def proxy_stream(token: str, request: Request):
+    """
+    Proxy-stream endpoint for YouTube and other platforms that need special
+    headers or signed URLs.  Pipes bytes from the CDN to the browser in
+    real-time — nothing is written to disk on the VPS.
+    """
+    debugPrint(f"API HIT: /api/stream/{token}")
+
+    entry = STREAM_TOKENS.get(token)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Stream token not found or expired.")
+    if time.time() > entry['expires']:
+        STREAM_TOKENS.pop(token, None)
+        raise HTTPException(status_code=410, detail="Stream token has expired.")
+
+    direct_url = entry['direct_url']
+    if not direct_url:
+        raise HTTPException(status_code=500, detail="No direct URL available for streaming.")
+
+    # Remove token after first use to avoid repeated requests
+    STREAM_TOKENS.pop(token, None)
+
+    filename = entry.get('filename', 'media.mp4')
+    src_headers = {k: v for k, v in (entry.get('headers') or {}).items()
+                   if k.lower() not in ('host', 'content-length')}
+
+    # Forward Range header if client sent one (supports seek / resume)
+    range_header = request.headers.get('range')
+    if range_header:
+        src_headers['Range'] = range_header
+
+    debugPrint(f"PROXY STREAM: Piping {direct_url[:80]} → client")
+
+    async def _stream_generator():
+        async with httpx.AsyncClient(follow_redirects=True, timeout=300) as client:
+            async with client.stream("GET", direct_url, headers=src_headers) as resp:
+                async for chunk in resp.aiter_bytes(chunk_size=65536):  # 64 KB chunks
+                    yield chunk
+
+    # Determine content type
+    ext_lower = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'mp4'
+    content_type_map = {
+        'mp4': 'video/mp4', 'webm': 'video/webm', 'mkv': 'video/x-matroska',
+        'mp3': 'audio/mpeg', 'm4a': 'audio/mp4', 'ogg': 'audio/ogg',
+        'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'webp': 'image/webp',
+    }
+    media_type = content_type_map.get(ext_lower, 'application/octet-stream')
+
+    headers = {
+        'Content-Disposition': f'attachment; filename="{filename}"',
+        'Accept-Ranges': 'bytes',
+    }
+
+    return StreamingResponse(
+        _stream_generator(),
+        media_type=media_type,
+        headers=headers,
+    )
+
 
 if __name__ == "__main__":
     import uvicorn

@@ -151,15 +151,100 @@ document.addEventListener('DOMContentLoaded', () => {
     resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // Trigger Download via API
+  // Trigger Download via /api/direct (no VPS disk storage)
   async function startDownload(quality, isAudio) {
     downloadStatus.style.display = 'block';
-    statusLabel.textContent = isAudio
-      ? '⚡ Processing & converting audio...'
-      : `⚡ Downloading & preparing video (${quality}p)...`;
-    
+
+    if (isAudio) {
+      // MP3 needs FFmpeg on VPS — fallback to old /api/download
+      statusLabel.textContent = '🎵 Converting to MP3... (this may take a moment)';
+      downloadStatus.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      await _legacyDownload(quality, isAudio);
+      return;
+    }
+
+    statusLabel.textContent = `⚡ Fetching direct link (${quality === 'album' ? 'Photos' : quality + 'p'})...`;
     downloadStatus.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
+    try {
+      const response = await fetch('/api/direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: currentMediaUrl,
+          quality: quality,
+          is_audio: isAudio
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        showToast(data.detail || 'Could not get download link.');
+        downloadStatus.style.display = 'none';
+        return;
+      }
+
+      // ── MODE: redirect ── browser downloads directly from CDN
+      if (data.mode === 'redirect') {
+        statusLabel.textContent = '✅ Direct link ready! Starting download...';
+        _triggerDownload(data.direct_url, data.filename);
+        setTimeout(() => { downloadStatus.style.display = 'none'; }, 3000);
+        return;
+      }
+
+      // ── MODE: stream ── VPS pipes bytes in real-time (no disk write)
+      if (data.mode === 'stream') {
+        statusLabel.textContent = '📡 Streaming from source... download will start shortly.';
+        _triggerDownload(data.stream_url, data.filename);
+        setTimeout(() => { downloadStatus.style.display = 'none'; }, 4000);
+        return;
+      }
+
+      // ── MODE: images ── download each image via direct CDN URL
+      if (data.mode === 'images') {
+        const urls = data.image_urls || [];
+        if (!urls.length) {
+          showToast('No images found in this post.');
+          downloadStatus.style.display = 'none';
+          return;
+        }
+        statusLabel.textContent = `🖼️ Downloading ${urls.length} image(s) directly...`;
+        // Trigger each image download with a small delay
+        urls.forEach((imgUrl, i) => {
+          setTimeout(() => {
+            const ext = imgUrl.split('?')[0].split('.').pop() || 'jpg';
+            _triggerDownload(imgUrl, `${data.title || 'image'}_${i + 1}.${ext}`);
+          }, i * 400);
+        });
+        setTimeout(() => { downloadStatus.style.display = 'none'; }, urls.length * 400 + 2000);
+        return;
+      }
+
+      // Unknown mode — fallback
+      showToast('Unexpected response from server.');
+      downloadStatus.style.display = 'none';
+
+    } catch (err) {
+      downloadStatus.style.display = 'none';
+      showToast('Error occurred while fetching download link.');
+      console.error(err);
+    }
+  }
+
+  // Helper: trigger a browser download via hidden <a>
+  function _triggerDownload(url, filename) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'download';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+
+  // Legacy fallback for MP3 (requires FFmpeg on VPS)
+  async function _legacyDownload(quality, isAudio) {
     try {
       const response = await fetch('/api/download', {
         method: 'POST',
@@ -179,19 +264,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      statusLabel.textContent = `✅ Ready! (${resData.filesize_mb || '0'} MB) Starting download...`;
+      statusLabel.textContent = `✅ MP3 ready! (${resData.filesize_mb || '?'} MB) Starting download...`;
+      _triggerDownload(resData.download_url, resData.filename);
 
-      // Trigger standard browser download
-      const downloadLink = document.createElement('a');
-      downloadLink.href = resData.download_url;
-      downloadLink.download = resData.filename;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-
-      setTimeout(() => {
-        downloadStatus.style.display = 'none';
-      }, 5000);
+      setTimeout(() => { downloadStatus.style.display = 'none'; }, 5000);
 
     } catch (err) {
       downloadStatus.style.display = 'none';
