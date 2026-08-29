@@ -307,10 +307,10 @@ body {
   padding: 2.5px; /* 2.5px crisp neon border track */
   overflow: hidden;
   box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7), 0 0 25px rgba(99, 102, 241, 0.2);
-  transition: box-shadow 0.3s ease, transform 0.3s ease;
+  transition: box-shadow 0.4s ease, transform 0.4s ease;
 }
 
-/* Sharp rotating neon beam */
+/* Sharp rotating neon beam - slow and ultra-smooth */
 .search-card-outer::before {
   content: '';
   position: absolute;
@@ -328,9 +328,9 @@ body {
     #6366f1 300deg,
     transparent 360deg
   );
-  animation: rotateBorderRay 4s linear infinite;
+  animation: rotateBorderRay 14s linear infinite;
   z-index: 0;
-  opacity: 0.9;
+  opacity: 0.85;
 }
 
 /* Soft blooming ambient glow */
@@ -344,37 +344,37 @@ body {
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    rgba(99, 102, 241, 0.8) 60deg,
-    rgba(236, 72, 153, 0.8) 120deg,
-    rgba(6, 182, 212, 0.8) 180deg,
-    rgba(168, 85, 247, 0.8) 240deg,
-    rgba(99, 102, 241, 0.8) 300deg,
+    rgba(99, 102, 241, 0.75) 60deg,
+    rgba(236, 72, 153, 0.75) 120deg,
+    rgba(6, 182, 212, 0.75) 180deg,
+    rgba(168, 85, 247, 0.75) 240deg,
+    rgba(99, 102, 241, 0.75) 300deg,
     transparent 360deg
   );
-  animation: rotateBorderRay 4s linear infinite;
+  animation: rotateBorderRay 14s linear infinite;
   z-index: 0;
-  filter: blur(14px);
-  opacity: 0.65;
-  transition: opacity 0.3s ease, filter 0.3s ease;
+  filter: blur(16px);
+  opacity: 0.55;
+  transition: opacity 0.4s ease, filter 0.4s ease;
 }
 
 .search-card-outer:hover,
 .search-card-outer:focus-within {
-  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.8), 0 0 40px rgba(99, 102, 241, 0.4), 0 0 60px rgba(236, 72, 153, 0.25);
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.8), 0 0 40px rgba(99, 102, 241, 0.35), 0 0 60px rgba(236, 72, 153, 0.2);
   transform: translateY(-2px);
 }
 
 .search-card-outer:hover::before,
 .search-card-outer:focus-within::before {
-  animation-duration: 2.2s;
+  animation-duration: 9s;
   opacity: 1;
 }
 
 .search-card-outer:hover::after,
 .search-card-outer:focus-within::after {
-  animation-duration: 2.2s;
-  opacity: 0.95;
-  filter: blur(18px);
+  animation-duration: 9s;
+  opacity: 0.85;
+  filter: blur(20px);
 }
 
 @keyframes rotateBorderRay {

@@ -219,18 +219,26 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
 
     # 2. Webpage HTML Extraction Fallback (Extracts full carousel images when GraphQL is blocked)
     try:
-        ydl_opts = {'quiet': True, 'no_warnings': True}
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ie = yt_dlp.extractor.instagram.InstagramIE(ydl)
-            html = ie._download_webpage(target_url, shortcode)
+        session = requests.Session()
+        session.headers.update(DEFAULT_HEADERS)
+        html_resp = session.get(f"https://www.instagram.com/p/{shortcode}/", timeout=12)
+        if html_resp.status_code == 200:
+            html = html_resp.text
             raw_matches = set(re.findall(r'https://[^"\'\s\\<>]*(?:cdninstagram|fbcdn)[^"\'\s\\<>]*', html))
             raw_clean = []
             for u in raw_matches:
                 cu = u.replace('\\u0026', '&').replace('\\/', '/').replace('&amp;', '&')
-                if '-15/' in cu and not any(x in cu for x in ['s150x150', 's320x320', 'p50x50']):
+                if '-15/' in cu and not any(x in cu for x in ['s150x150', 's320x320', 'p50x50', 's240x240']):
                     raw_clean.append(cu)
             
             post_images = select_highest_quality_photos(raw_clean)
+            
+            # If no regex matches, check og:image
+            if not post_images:
+                soup = BeautifulSoup(html, 'html.parser')
+                og_img = soup.find('meta', property='og:image')
+                if og_img and og_img.get('content') and og_img['content'].startswith('http'):
+                    post_images = [og_img['content']]
             
             if post_images:
                 title = "Instagram Post"
@@ -267,7 +275,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                         ]
                     }
     except Exception as ig_err:
-        logger.warning(f"Instagram HTML fallback failed: {ig_err}")
+        logger.warning(f"Instagram direct HTML fallback failed: {ig_err}")
 
     return None
 
@@ -374,10 +382,28 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
                 'formats': formats
             }
     except Exception as e:
-        logger.error(f"Metadata extraction failed: {e}")
+        err_msg = str(e)
+        logger.warning(f"Metadata extraction fallback triggered for {target_url}: {err_msg}")
+        
+        # If yt-dlp fails with "No video formats found", check if it's an image post or photo carousel
+        if "no video formats found" in err_msg.lower() or "there's no video in this" in err_msg.lower() or "instagram" in target_url.lower() or "facebook" in target_url.lower():
+            if ig_match:
+                ig_res = extract_instagram_post_info(target_url, ig_match.group(1))
+                if ig_res:
+                    return ig_res
+
+        # Format a clean, human-friendly error message
+        friendly_error = "Could not fetch media. Please make sure the post is public and the link is valid."
+        if "private" in err_msg.lower():
+            friendly_error = "This post is private or requires login to view."
+        elif "not found" in err_msg.lower() or "404" in err_msg:
+            friendly_error = "Post not found. Please check if the URL is correct."
+        elif "no video formats found" in err_msg.lower():
+            friendly_error = "No downloadable media found in this post."
+
         return {
             'status': 'error',
-            'error': str(e)[:200],
+            'error': friendly_error,
             'platform': platform,
             'title': 'Media',
             'formats': [
