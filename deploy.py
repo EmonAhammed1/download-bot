@@ -114,16 +114,19 @@ def deploy_docker(commit_msg="Update bot and web app"):
 
     sftp.close()
 
-    # 5. Restart systemd service and check logs
-    print("\n5. Restarting Telegram Bot service on VPS...")
-    exec_cmd("systemctl daemon-reload && systemctl enable media-downloader-bot && systemctl restart media-downloader-bot")
+    # 5. Restart BOTH systemd services (bot + web app)
+    print("\n5. Restarting Telegram Bot AND Web App services on VPS...")
+    exec_cmd("systemctl daemon-reload")
+    exec_cmd("systemctl enable media-downloader-bot && systemctl restart media-downloader-bot")
+    exec_cmd("systemctl enable media-downloader-web && systemctl restart media-downloader-web")
 
-    time.sleep(2)
+    time.sleep(3)
 
-    # 6. Verify Service status & logs
-    print("\n6. Verifying Telegram Bot state...")
-    exec_cmd("systemctl status media-downloader-bot --no-pager")
-    exec_cmd("journalctl -u media-downloader-bot -n 25 --no-pager")
+    # 6. Verify both services
+    print("\n6. Verifying both services...")
+    exec_cmd("systemctl status media-downloader-bot --no-pager | head -8")
+    exec_cmd("systemctl status media-downloader-web --no-pager | head -8")
+    exec_cmd("journalctl -u media-downloader-bot -n 10 --no-pager")
 
     ssh.close()
     print("\n==========================================")
