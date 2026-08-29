@@ -114,22 +114,22 @@ def deploy_docker(commit_msg="Update bot and web app"):
 
     sftp.close()
 
-    # 5. Build and run Docker container
-    print("\n5. Building and starting Docker container...")
-    exec_cmd(f"cd {REMOTE_APP_DIR} && docker compose up -d --build")
+    # 5. Restart systemd service and check logs
+    print("\n5. Restarting Telegram Bot service on VPS...")
+    exec_cmd("systemctl daemon-reload && systemctl enable media-downloader-bot && systemctl restart media-downloader-bot")
 
-    time.sleep(3)
+    time.sleep(2)
 
-    # 6. Verify Docker container status
-    print("\n6. Verifying Docker container state...")
-    exec_cmd("docker ps --filter name=telegram-media-bot")
-    exec_cmd("docker logs --tail 20 telegram-media-bot")
+    # 6. Verify Service status & logs
+    print("\n6. Verifying Telegram Bot state...")
+    exec_cmd("systemctl status media-downloader-bot --no-pager")
+    exec_cmd("journalctl -u media-downloader-bot -n 25 --no-pager")
 
     ssh.close()
     print("\n==========================================")
-    print("🎉 Docker Container is UP & RUNNING on your VPS Dashboard!")
+    print("🎉 Telegram Bot & Web App are UP & RUNNING on your VPS!")
     print("==========================================")
 
 if __name__ == "__main__":
-    msg = sys.argv[1] if len(sys.argv) > 1 else "Deploy docker container"
+    msg = sys.argv[1] if len(sys.argv) > 1 else "Update bot and web app"
     deploy_docker(msg)
