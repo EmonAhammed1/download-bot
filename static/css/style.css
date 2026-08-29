@@ -328,7 +328,7 @@ body {
     #6366f1 300deg,
     transparent 360deg
   );
-  animation: rotateBorderRay 14s linear infinite;
+  animation: rotateBorderRay 28s linear infinite;
   z-index: 0;
   opacity: 0.85;
 }
@@ -351,7 +351,7 @@ body {
     rgba(99, 102, 241, 0.75) 300deg,
     transparent 360deg
   );
-  animation: rotateBorderRay 14s linear infinite;
+  animation: rotateBorderRay 28s linear infinite;
   z-index: 0;
   filter: blur(16px);
   opacity: 0.55;
@@ -366,13 +366,13 @@ body {
 
 .search-card-outer:hover::before,
 .search-card-outer:focus-within::before {
-  animation-duration: 9s;
+  animation-duration: 18s;
   opacity: 1;
 }
 
 .search-card-outer:hover::after,
 .search-card-outer:focus-within::after {
-  animation-duration: 9s;
+  animation-duration: 18s;
   opacity: 0.85;
   filter: blur(20px);
 }

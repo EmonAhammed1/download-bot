@@ -161,15 +161,43 @@ async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks
         raise HTTPException(status_code=400, detail="Invalid media URL provided.")
 
     try:
-        # Check if requested format is album
-        if req.quality == "album":
+        # Check if requested format is album or image
+        if req.quality in ["album", "img_zip", "album_zip", "img"]:
             img_result = await download_images(extracted_url)
             paths = img_result.get('image_paths', [])
             if not paths:
-                raise HTTPException(status_code=404, detail="No photos found.")
+                raise HTTPException(status_code=404, detail="No photos found in this post.")
             
-            # Return image URLs
-            # For multiple images, we can package or return first
+            title = img_result.get('title', 'photos')
+            safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:80] or "photos"
+
+            if req.quality in ["img_zip", "album_zip"] and len(paths) > 1:
+                import zipfile
+                zip_filename = f"{safe_title}_album_{uuid.uuid4().hex[:6]}.zip"
+                zip_path = os.path.join(DOWNLOAD_DIR, zip_filename)
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    for idx, ip in enumerate(paths):
+                        if os.path.exists(ip):
+                            ext_part = os.path.splitext(ip)[1] or '.jpg'
+                            zf.write(ip, f"{safe_title}_{idx+1}{ext_part}")
+                
+                cleanup_files(paths)
+                file_id = uuid.uuid4().hex[:12]
+                zip_size = os.path.getsize(zip_path)
+                ACTIVE_DOWNLOADS[file_id] = {
+                    "file_path": zip_path,
+                    "filename": f"{safe_title}.zip",
+                    "filesize": zip_size
+                }
+                return {
+                    "status": "ready",
+                    "file_id": file_id,
+                    "download_url": f"/api/file/{file_id}",
+                    "filename": f"{safe_title}.zip",
+                    "filesize": zip_size,
+                    "filesize_mb": round(zip_size / (1024 * 1024), 2)
+                }
+
             file_path = paths[0]
             file_id = uuid.uuid4().hex[:12]
             ACTIVE_DOWNLOADS[file_id] = {
@@ -183,7 +211,8 @@ async def start_download(req: DownloadRequest, background_tasks: BackgroundTasks
                 "file_id": file_id,
                 "download_url": f"/api/file/{file_id}",
                 "filename": os.path.basename(file_path),
-                "filesize": os.path.getsize(file_path)
+                "filesize": os.path.getsize(file_path),
+                "filesize_mb": round(os.path.getsize(file_path) / (1024 * 1024), 2)
             }
 
         # Download Video or Audio

@@ -155,9 +155,15 @@ def select_highest_quality_photos(urls: List[str]) -> List[str]:
 
     return highest_res_urls
 
+IG_MOBILE_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+}
+
 def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dict[str, Any]]:
     """Extract Instagram metadata, videos, single photos, and carousel multi-photo albums at maximum quality."""
-    # 1. Try GraphQL
+    # 1. Try GraphQL API first
     ig_data = extract_instagram_graphql(shortcode)
     if ig_data:
         is_video = ig_data.get('is_video', False)
@@ -217,38 +223,56 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                 ]
             }
 
-    # 2. Webpage HTML Extraction Fallback (Extracts full carousel images when GraphQL is blocked)
+    # 2. Direct Mobile SSR Webpage HTML Extraction (Extracts full carousel images & videos without login)
     try:
         session = requests.Session()
-        session.headers.update(DEFAULT_HEADERS)
-        html_resp = session.get(f"https://www.instagram.com/p/{shortcode}/", timeout=12)
+        html_resp = session.get(f"https://www.instagram.com/p/{shortcode}/", headers=IG_MOBILE_HEADERS, timeout=12)
         if html_resp.status_code == 200:
-            html = html_resp.text
-            raw_matches = set(re.findall(r'https://[^"\'\s\\<>]*(?:cdninstagram|fbcdn)[^"\'\s\\<>]*', html))
-            raw_clean = []
-            for u in raw_matches:
-                cu = u.replace('\\u0026', '&').replace('\\/', '/').replace('&amp;', '&')
-                if '-15/' in cu and not any(x in cu for x in ['s150x150', 's320x320', 'p50x50', 's240x240']):
-                    raw_clean.append(cu)
+            raw_html = html_resp.text
+            unescaped = raw_html.replace(r'\/', '/').replace(r'\u0026', '&').replace(r'\u003C', '<').replace(r'\u003E', '>').replace('&amp;', '&')
             
-            post_images = select_highest_quality_photos(raw_clean)
+            # Title extraction
+            soup = BeautifulSoup(raw_html, 'html.parser')
+            og_title = soup.find('meta', property='og:title')
+            title = og_title['content'] if og_title and og_title.get('content') else (soup.title.string if soup.title else "Instagram Post")
+
+            # Check if there is a video in the post
+            video_matches = set(re.findall(r'https://[^\s"\'<>]*(?:cdninstagram\.com|fbcdn\.net)[^\s"\'<>]*\.mp4[^\s"\'<>]*', unescaped))
+            if video_matches:
+                vid_url = list(video_matches)[0]
+                og_img = soup.find('meta', property='og:image')
+                thumb_url = og_img['content'] if og_img and og_img.get('content') else None
+                return {
+                    'status': 'success',
+                    'platform': 'Instagram',
+                    'title': title[:120],
+                    'thumbnail': thumb_url,
+                    'duration': 0,
+                    'is_album': False,
+                    'video_url': vid_url,
+                    'formats': [
+                        {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
+                        {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
+                        {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
+                    ]
+                }
+
+            # Extract photos
+            all_scontent = set(re.findall(r'https://[^\s"\'<>]*(?:cdninstagram\.com|fbcdn\.net)[^\s"\'<>]*', unescaped))
+            post_cands = []
+            for u in all_scontent:
+                if ('/v/t51.82787-15/' in u or '/v/t51.' in u or '/v/t50.' in u) and not any(x in u for x in ['s150x150', 's320x320', 'p50x50', 's240x240', '-19/']):
+                    post_cands.append(u)
+
+            post_images = select_highest_quality_photos(post_cands)
             
             # If no regex matches, check og:image
             if not post_images:
-                soup = BeautifulSoup(html, 'html.parser')
                 og_img = soup.find('meta', property='og:image')
                 if og_img and og_img.get('content') and og_img['content'].startswith('http'):
                     post_images = [og_img['content']]
             
             if post_images:
-                title = "Instagram Post"
-                soup = BeautifulSoup(html, 'html.parser')
-                og_title = soup.find('meta', property='og:title')
-                if og_title and og_title.get('content'):
-                    title = og_title['content']
-                elif soup.title:
-                    title = soup.title.string or title
-
                 if len(post_images) > 1:
                     return {
                         'status': 'success',
@@ -270,12 +294,13 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                         'title': title[:120],
                         'thumbnail': post_images[0],
                         'is_album': False,
+                        'photos': post_images,
                         'formats': [
                             {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'HD', 'size': '~ 1.5 MB'}
                         ]
                     }
     except Exception as ig_err:
-        logger.warning(f"Instagram direct HTML fallback failed: {ig_err}")
+        logger.warning(f"Instagram mobile SSR fallback failed: {ig_err}")
 
     return None
 
