@@ -22,6 +22,7 @@ REMOTE_APP_DIR = "/opt/media-downloader-bot"
 FILES_TO_SYNC = [
     "bot.py",
     "downloader.py",
+    "web_app.py",
     "config.py",
     "requirements.txt",
     "Dockerfile",
@@ -30,9 +31,28 @@ FILES_TO_SYNC = [
     "cookies.txt",
 ]
 
-def deploy_docker(commit_msg="Update bot"):
+DIRS_TO_SYNC = [
+    "static",
+    "templates",
+]
+
+def upload_dir(sftp, local_dir, remote_dir):
+    for root, dirs, files in os.walk(local_dir):
+        rel_path = os.path.relpath(root, local_dir)
+        target_dir = os.path.join(remote_dir, rel_path).replace("\\", "/")
+        try:
+            sftp.mkdir(target_dir)
+        except Exception:
+            pass
+        for file in files:
+            local_file = os.path.join(root, file)
+            remote_file = os.path.join(target_dir, file).replace("\\", "/")
+            sftp.put(local_file, remote_file)
+            print(f"   -> Uploaded {file}")
+
+def deploy_docker(commit_msg="Update bot and web app"):
     print("==========================================")
-    print("🐳 Deploying Telegram Bot as Docker Container to VPS")
+    print("🐳 Deploying Telegram Bot & Web App to VPS")
     print("==========================================")
 
     # 1. Git Add, Commit & Push to GitHub
@@ -85,6 +105,13 @@ def deploy_docker(commit_msg="Update bot"):
         if os.path.exists(local_path):
             sftp.put(local_path, remote_path)
             print(f"   -> Uploaded {filename}")
+
+    for dirname in DIRS_TO_SYNC:
+        local_path = os.path.join(LOCAL_DIR, dirname)
+        remote_path = f"{REMOTE_APP_DIR}/{dirname}"
+        if os.path.exists(local_path):
+            upload_dir(sftp, local_path, remote_path)
+
     sftp.close()
 
     # 5. Build and run Docker container

@@ -105,44 +105,93 @@ def extract_instagram_graphql(shortcode: str) -> Optional[Dict[str, Any]]:
         logger.error(f"Instagram GraphQL query error for shortcode {shortcode}: {e}")
     return None
 
-def extract_media_info_sync(url: str) -> Dict[str, Any]:
-    """Extract media metadata (title, thumbnail, duration, available qualities) without downloading."""
-    target_url = clean_url(url)
-    platform = get_platform_name(target_url)
+def get_highest_res_ig_node_url(node: Dict[str, Any]) -> str:
+    """Extract the highest resolution image URL from an Instagram node."""
+    display_resources = node.get('display_resources') or []
+    if display_resources:
+        sorted_res = sorted(display_resources, key=lambda x: (x.get('config_width', 0) * x.get('config_height', 0)), reverse=True)
+        if sorted_res and sorted_res[0].get('src'):
+            return sorted_res[0]['src']
     
-    # 1. Instagram GraphQL quick check
-    ig_match = re.search(r'instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)', target_url)
-    if ig_match:
-        shortcode = ig_match.group(1)
-        ig_data = extract_instagram_graphql(shortcode)
-        if ig_data:
-            is_video = ig_data.get('is_video', False)
-            caption_edges = ig_data.get('edge_media_to_caption', {}).get('edges', [])
-            title = caption_edges[0].get('node', {}).get('text', 'Instagram Post') if caption_edges else 'Instagram Post'
-            thumb = ig_data.get('display_url')
-            duration = ig_data.get('video_duration', 0)
+    candidates = node.get('image_versions2', {}).get('candidates', [])
+    if candidates:
+        sorted_cands = sorted(candidates, key=lambda x: (x.get('width', 0) * x.get('height', 0)), reverse=True)
+        if sorted_cands and sorted_cands[0].get('url'):
+            return sorted_cands[0]['url']
             
-            # Check if carousel
-            children = ig_data.get('edge_sidecar_to_children', {}).get('edges', [])
-            if children and not is_video:
-                photos = [c.get('node', {}).get('display_url') for c in children if c.get('node', {}).get('display_url')]
+    return node.get('display_url') or ''
+
+def select_highest_quality_photos(urls: List[str]) -> List[str]:
+    """
+    Given a list of candidate image URLs, deduplicate by photo ID and pick the
+    highest resolution / unconstrained quality URL for each unique image.
+    """
+    by_photo_id: Dict[str, List[str]] = {}
+    for u in urls:
+        m = re.search(r'/(\d+_\d+_\d+_[a-z0-9]+)', u)
+        key = m.group(1) if m else u.split('?')[0]
+        if key not in by_photo_id:
+            by_photo_id[key] = []
+        by_photo_id[key].append(u)
+
+    highest_res_urls = []
+    for key, cand_urls in by_photo_id.items():
+        if len(cand_urls) == 1:
+            highest_res_urls.append(cand_urls[0])
+            continue
+
+        def _score(url: str) -> int:
+            score = 0
+            if 'instagram.f' in url or 'scontent.f' in url:
+                score += 10
+            if '_s640x640' not in url and '_s480x480' not in url and '_s320x320' not in url:
+                score += 50
+            if 'dst-jpg_e35_s' not in url:
+                score += 30
+            return score
+
+        best_cand = max(cand_urls, key=_score)
+        highest_res_urls.append(best_cand)
+
+    return highest_res_urls
+
+def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dict[str, Any]]:
+    """Extract Instagram metadata, videos, single photos, and carousel multi-photo albums at maximum quality."""
+    # 1. Try GraphQL
+    ig_data = extract_instagram_graphql(shortcode)
+    if ig_data:
+        is_video = ig_data.get('is_video', False)
+        caption_edges = ig_data.get('edge_media_to_caption', {}).get('edges', [])
+        title = caption_edges[0].get('node', {}).get('text', 'Instagram Post') if caption_edges else 'Instagram Post'
+        thumb = get_highest_res_ig_node_url(ig_data) or ig_data.get('display_url')
+        duration = ig_data.get('video_duration', 0)
+        
+        children = ig_data.get('edge_sidecar_to_children', {}).get('edges', [])
+        if children:
+            photos = []
+            for c in children:
+                node = c.get('node', {})
+                best_photo_url = get_highest_res_ig_node_url(node)
+                if best_photo_url:
+                    photos.append(best_photo_url)
+                elif node.get('video_url'):
+                    photos.append(node['video_url'])
+            if photos:
                 return {
                     'status': 'success',
                     'platform': 'Instagram',
                     'title': title[:120],
-                    'thumbnail': thumb,
+                    'thumbnail': photos[0],
                     'is_album': True,
                     'photo_count': len(photos),
                     'photos': photos,
-                    'formats': [{'id': 'album', 'label': f'🖼️ Download All ({len(photos)} Photos)', 'type': 'album'}]
+                    'formats': [
+                        {'id': 'album', 'label': f'🖼️ Download All ({len(photos)} Photos)', 'type': 'album', 'badge': f'{len(photos)}P', 'size': f'~ {round(len(photos) * 1.5, 1)} MB'},
+                        {'id': 'img_zip', 'label': '📦 Download as ZIP Album', 'type': 'album', 'badge': 'ZIP', 'size': f'~ {round(len(photos) * 1.5, 1)} MB'}
+                    ]
                 }
-            
-            formats = [
-                {'id': '1080', 'label': '1080p Full HD', 'type': 'video'},
-                {'id': '720', 'label': '720p HD', 'type': 'video'},
-                {'id': 'MP3', 'label': 'MP3 Audio (320kbps)', 'type': 'audio'},
-            ] if is_video else [{'id': 'img', 'label': 'Download High-Res Photo', 'type': 'image'}]
-            
+        
+        if is_video:
             return {
                 'status': 'success',
                 'platform': 'Instagram',
@@ -150,8 +199,90 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
                 'thumbnail': thumb,
                 'duration': int(duration),
                 'is_album': False,
-                'formats': formats
+                'formats': [
+                    {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
+                    {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
+                    {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
+                ]
             }
+        else:
+            return {
+                'status': 'success',
+                'platform': 'Instagram',
+                'title': title[:120],
+                'thumbnail': thumb,
+                'is_album': False,
+                'formats': [
+                    {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'HD', 'size': '~ 1.5 MB'}
+                ]
+            }
+
+    # 2. Webpage HTML Extraction Fallback (Extracts full carousel images when GraphQL is blocked)
+    try:
+        ydl_opts = {'quiet': True, 'no_warnings': True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ie = yt_dlp.extractor.instagram.InstagramIE(ydl)
+            html = ie._download_webpage(target_url, shortcode)
+            raw_matches = set(re.findall(r'https://[^"\'\s\\<>]*(?:cdninstagram|fbcdn)[^"\'\s\\<>]*', html))
+            raw_clean = []
+            for u in raw_matches:
+                cu = u.replace('\\u0026', '&').replace('\\/', '/').replace('&amp;', '&')
+                if '-15/' in cu and not any(x in cu for x in ['s150x150', 's320x320', 'p50x50']):
+                    raw_clean.append(cu)
+            
+            post_images = select_highest_quality_photos(raw_clean)
+            
+            if post_images:
+                title = "Instagram Post"
+                soup = BeautifulSoup(html, 'html.parser')
+                og_title = soup.find('meta', property='og:title')
+                if og_title and og_title.get('content'):
+                    title = og_title['content']
+                elif soup.title:
+                    title = soup.title.string or title
+
+                if len(post_images) > 1:
+                    return {
+                        'status': 'success',
+                        'platform': 'Instagram',
+                        'title': title[:120],
+                        'thumbnail': post_images[0],
+                        'is_album': True,
+                        'photo_count': len(post_images),
+                        'photos': post_images,
+                        'formats': [
+                            {'id': 'album', 'label': f'🖼️ Download All ({len(post_images)} Photos)', 'type': 'album', 'badge': f'{len(post_images)}P', 'size': f'~ {round(len(post_images) * 1.5, 1)} MB'},
+                            {'id': 'img_zip', 'label': '📦 Download as ZIP Album', 'type': 'album', 'badge': 'ZIP', 'size': f'~ {round(len(post_images) * 1.5, 1)} MB'}
+                        ]
+                    }
+                else:
+                    return {
+                        'status': 'success',
+                        'platform': 'Instagram',
+                        'title': title[:120],
+                        'thumbnail': post_images[0],
+                        'is_album': False,
+                        'formats': [
+                            {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'HD', 'size': '~ 1.5 MB'}
+                        ]
+                    }
+    except Exception as ig_err:
+        logger.warning(f"Instagram HTML fallback failed: {ig_err}")
+
+    return None
+
+def extract_media_info_sync(url: str) -> Dict[str, Any]:
+    """Extract media metadata (title, thumbnail, duration, available qualities) without downloading."""
+    target_url = clean_url(url)
+    platform = get_platform_name(target_url)
+    
+    # 1. Instagram extraction
+    ig_match = re.search(r'instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)', target_url)
+    if ig_match:
+        shortcode = ig_match.group(1)
+        ig_res = extract_instagram_post_info(target_url, shortcode)
+        if ig_res:
+            return ig_res
 
     # 2. General yt-dlp metadata extraction
     COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
@@ -160,6 +291,8 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
+        'js_runtimes': {'node': {}},
+        'remote_components': ['ejs:github', 'ejs:npm'],
     }
     if os.path.exists(COOKIE_FILE):
         temp_cookie = os.path.join(DOWNLOAD_DIR, f"info_cookie_{uuid.uuid4().hex[:8]}.txt")
@@ -171,15 +304,65 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
             info = ydl.extract_info(target_url, download=False)
             title = info.get('title', 'Media')
             thumb = info.get('thumbnail')
-            duration = info.get('duration', 0)
+            duration = info.get('duration') or 0
+            raw_formats = info.get('formats') or []
+
+            # -------------------------------------------------------------
+            # Compute exact / estimated file size for each resolution & MP3
+            # -------------------------------------------------------------
+            audio_fmts = [f for f in raw_formats if f.get('vcodec') == 'none' and f.get('acodec') not in ('none', None)]
+            best_audio_sz = 0
+            if audio_fmts:
+                a_sizes = []
+                for f in audio_fmts:
+                    sz = f.get('filesize') or f.get('filesize_approx')
+                    if not sz and f.get('tbr') and duration:
+                        sz = (f['tbr'] * 1000 / 8) * duration
+                    if sz:
+                        a_sizes.append(sz)
+                if a_sizes:
+                    best_audio_sz = max(a_sizes)
+            if not best_audio_sz and duration:
+                best_audio_sz = (128 * 1000 / 8) * duration
+
+            def get_format_size_str(target_h: int) -> str:
+                try:
+                    fmt_str = f'bestvideo[height<={target_h}]+bestaudio/best[height<={target_h}]/best'
+                    selector = ydl.build_format_selector(fmt_str)
+                    selected = list(selector({'formats': raw_formats, 'incomplete_formats': False}))
+                    if selected:
+                        sel = selected[0]
+                        req_fmts = sel.get('requested_formats', [sel])
+                        total_sz = 0
+                        for rf in req_fmts:
+                            sz = rf.get('filesize') or rf.get('filesize_approx')
+                            if not sz and rf.get('tbr') and duration:
+                                sz = (rf['tbr'] * 1000 / 8) * duration
+                            total_sz += (sz or 0)
+                        if total_sz > 0:
+                            mb = total_sz / (1024 * 1024)
+                            return f"{round(mb, 1)} MB" if mb < 1000 else f"{round(mb / 1024, 2)} GB"
+                except Exception as err:
+                    logger.warning(f"Format size calculation fallback for {target_h}p: {err}")
+
+                if duration:
+                    bitrates = {1080: 800, 720: 500, 480: 350, 360: 250}
+                    br = bitrates.get(target_h, 400)
+                    est_bytes = ((br + 128) * 1000 / 8) * duration
+                    mb = est_bytes / (1024 * 1024)
+                    return f"{round(mb, 1)} MB"
+                return ""
+
+            mp3_mb = round(best_audio_sz / (1024 * 1024), 1) if best_audio_sz > 0 else (round((320 * 1000 / 8 * duration) / (1024 * 1024), 1) if duration else 0)
+            mp3_sz_str = f"{mp3_mb} MB" if mp3_mb > 0 else ""
             
-            # Format list
+            # Format list with exact matching sizes
             formats = [
-                {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD'},
-                {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD'},
-                {'id': '480', 'label': '🎬 480p SD', 'type': 'video', 'badge': 'SD'},
-                {'id': '360', 'label': '🎬 360p Fast', 'type': 'video', 'badge': 'Fast'},
-                {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio'},
+                {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD', 'size': get_format_size_str(1080)},
+                {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': get_format_size_str(720)},
+                {'id': '480', 'label': '🎬 480p SD', 'type': 'video', 'badge': 'SD', 'size': get_format_size_str(480)},
+                {'id': '360', 'label': '🎬 360p Fast', 'type': 'video', 'badge': 'Fast', 'size': get_format_size_str(360)},
+                {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': mp3_sz_str},
             ]
             
             return {
@@ -198,9 +381,9 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
             'platform': platform,
             'title': 'Media',
             'formats': [
-                {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD'},
-                {'id': '480', 'label': '🎬 480p SD', 'type': 'video', 'badge': 'SD'},
-                {'id': 'MP3', 'label': '🎵 MP3 Audio', 'type': 'audio', 'badge': 'Audio'}
+                {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': ''},
+                {'id': '480', 'label': '🎬 480p SD', 'type': 'video', 'badge': 'SD', 'size': ''},
+                {'id': 'MP3', 'label': '🎵 MP3 Audio', 'type': 'audio', 'badge': 'Audio', 'size': ''}
             ]
         }
     finally:
@@ -210,10 +393,24 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
             except Exception:
                 pass
 
-def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") -> Dict[str, Any]:
+# Real-time progress store: task_id -> { status, percent, downloaded_mb, total_mb, speed, eta, msg }
+PROGRESS_STORE: Dict[str, Any] = {}
+
+def download_media_sync(url: str, is_audio: bool = False, quality: str = "720", task_id: Optional[str] = None) -> Dict[str, Any]:
     """Download video with selected quality (1080, 720, 480, 360) or audio using yt-dlp / direct API."""
     target_url = clean_url(url)
     
+    if task_id:
+        PROGRESS_STORE[task_id] = {
+            'status': 'starting',
+            'percent': 0,
+            'downloaded_mb': 0,
+            'total_mb': 0,
+            'speed': '',
+            'eta': '',
+            'msg': 'Connecting to media server...'
+        }
+
     # 1. Try Instagram Direct Video API if applicable
     ig_match = re.search(r'instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)', target_url)
     if ig_match:
@@ -233,6 +430,8 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
                 if v_resp.status_code == 200:
                     with open(file_path, "wb") as f:
                         f.write(v_resp.content)
+                    if task_id:
+                        PROGRESS_STORE[task_id] = {'status': 'completed', 'percent': 100, 'msg': 'Download Complete!'}
                     return {
                         'file_path': file_path,
                         'title': title[:150],
@@ -247,7 +446,39 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
     COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
     temp_cookie = None
     
-    # 2. General yt-dlp extraction
+    # Progress hook callback
+    def _progress_hook(d):
+        if not task_id:
+            return
+        if d.get('status') == 'downloading':
+            total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+            downloaded = d.get('downloaded_bytes') or 0
+            pct = round((downloaded / total * 100), 1) if total > 0 else 0
+            spd = d.get('speed') or 0
+            spd_str = f"{round(spd / (1024 * 1024), 2)} MB/s" if spd else ""
+            eta = d.get('eta')
+            eta_str = f"{eta}s" if eta else ""
+            PROGRESS_STORE[task_id] = {
+                'status': 'downloading',
+                'percent': pct,
+                'downloaded_mb': round(downloaded / (1024 * 1024), 2),
+                'total_mb': round(total / (1024 * 1024), 2),
+                'speed': spd_str,
+                'eta': eta_str,
+                'msg': f"Downloading {pct}% ({round(downloaded/(1024*1024), 1)} MB / {round(total/(1024*1024), 1)} MB)"
+            }
+        elif d.get('status') == 'finished':
+            PROGRESS_STORE[task_id] = {
+                'status': 'merging',
+                'percent': 99,
+                'downloaded_mb': round((d.get('total_bytes') or 0) / (1024 * 1024), 2),
+                'total_mb': round((d.get('total_bytes') or 0) / (1024 * 1024), 2),
+                'speed': '',
+                'eta': '',
+                'msg': 'Merging video & audio with FFmpeg...'
+            }
+
+    # 2. General yt-dlp extraction with Node.js and challenge solver for crisp 1080p
     file_prefix = os.path.join(DOWNLOAD_DIR, f"{uuid.uuid4().hex[:8]}_%(epoch)s")
     if is_audio:
         ydl_opts = {
@@ -256,10 +487,13 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
+            'js_runtimes': {'node': {}},
+            'remote_components': ['ejs:github', 'ejs:npm'],
+            'progress_hooks': [_progress_hook],
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
-                'preferredquality': '192',
+                'preferredquality': '320',
             }],
         }
     else:
@@ -277,6 +511,9 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
+            'js_runtimes': {'node': {}},
+            'remote_components': ['ejs:github', 'ejs:npm'],
+            'progress_hooks': [_progress_hook],
         }
 
     if os.path.exists(COOKIE_FILE):
@@ -307,6 +544,17 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720") 
 
             file_size = os.path.getsize(filename) if os.path.exists(filename) else 0
 
+            if task_id:
+                PROGRESS_STORE[task_id] = {
+                    'status': 'completed',
+                    'percent': 100,
+                    'downloaded_mb': round(file_size / (1024 * 1024), 2),
+                    'total_mb': round(file_size / (1024 * 1024), 2),
+                    'speed': '',
+                    'eta': '',
+                    'msg': '✅ Download Complete!'
+                }
+
             return {
                 'file_path': filename,
                 'title': info.get('title', 'Media'),
@@ -330,37 +578,19 @@ def download_images_sync(url: str) -> Dict[str, Any]:
     downloaded_files: List[str] = []
     title = "Post Images"
     
-    # 1. Direct Instagram GraphQL API (handles carousel albums and single photos in Full HD!)
+    # 1. Instagram extraction (GraphQL + HTML scraper)
     ig_match = re.search(r'instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)', target_url)
     if ig_match:
         shortcode = ig_match.group(1)
-        ig_data = extract_instagram_graphql(shortcode)
-        if ig_data:
-            caption_edges = ig_data.get('edge_media_to_caption', {}).get('edges', [])
-            if caption_edges:
-                title = caption_edges[0].get('node', {}).get('text', title)
-            
-            # Check for carousel children
-            children = ig_data.get('edge_sidecar_to_children', {}).get('edges', [])
-            image_urls = []
-            if children:
-                for c in children:
-                    node = c.get('node', {})
-                    display_url = node.get('display_url')
-                    if display_url:
-                        image_urls.append(display_url)
-            else:
-                # Single photo
-                display_url = ig_data.get('display_url')
-                if display_url:
-                    image_urls.append(display_url)
-
-            # Download all Instagram images without restriction
-            for i, img_url in enumerate(image_urls):
+        ig_info = extract_instagram_post_info(target_url, shortcode)
+        if ig_info:
+            title = ig_info.get('title', title)
+            photos = ig_info.get('photos') or ([ig_info.get('thumbnail')] if ig_info.get('thumbnail') else [])
+            for i, img_url in enumerate(photos):
                 try:
                     img_resp = requests.get(img_url, headers=DEFAULT_HEADERS, timeout=15)
                     if img_resp.status_code == 200 and len(img_resp.content) > 1024:
-                        filename = os.path.join(DOWNLOAD_DIR, f"ig_img_{shortcode}_{i}.jpg")
+                        filename = os.path.join(DOWNLOAD_DIR, f"ig_img_{shortcode}_{i+1}.jpg")
                         with open(filename, "wb") as f:
                             f.write(img_resp.content)
                         downloaded_files.append(filename)
@@ -374,7 +604,61 @@ def download_images_sync(url: str) -> Dict[str, Any]:
                     'count': len(downloaded_files)
                 }
 
-    # 2. Try with yt-dlp
+    # 2. Facebook extraction using crawler User-Agent
+    if any(x in target_url.lower() for x in ["facebook.com", "fb.watch", "fb.me", "fb.com"]):
+        try:
+            s = requests.Session()
+            s.headers.update({
+                'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            })
+            r = s.get(target_url, allow_redirects=True, timeout=12)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, 'html.parser')
+                fb_images = []
+                og_img = soup.find('meta', property='og:image')
+                if og_img and og_img.get('content') and og_img['content'].startswith('http'):
+                    fb_images.append(og_img['content'])
+                
+                for img in soup.find_all('img'):
+                    src = img.get('src') or img.get('data-src')
+                    if src and 'fbcdn.net' in src and not any(x in src for x in ['static.', 'rsrc.', 'emoji', 'icon', 'p50x50', 'p100x100']):
+                        if src not in fb_images:
+                            fb_images.append(src)
+                
+                if fb_images:
+                    og_title = soup.find('meta', property='og:title')
+                    if og_title and og_title.get('content'):
+                        title = og_title['content']
+                    elif soup.title:
+                        title = soup.title.string or title
+                    
+                    for i, img_url in enumerate(fb_images[:20]):
+                        try:
+                            img_resp = s.get(img_url, timeout=12)
+                            if img_resp.status_code == 200 and len(img_resp.content) > 10240:
+                                ext = ".jpg"
+                                if "png" in img_resp.headers.get("Content-Type", ""):
+                                    ext = ".png"
+                                elif "webp" in img_resp.headers.get("Content-Type", ""):
+                                    ext = ".webp"
+                                filename = os.path.join(DOWNLOAD_DIR, f"fb_img_{uuid.uuid4().hex[:8]}_{i+1}{ext}")
+                                with open(filename, "wb") as f:
+                                    f.write(img_resp.content)
+                                downloaded_files.append(filename)
+                        except Exception as e:
+                            logger.error(f"Failed to download Facebook image: {e}")
+                    
+                    if downloaded_files:
+                        return {
+                            'image_paths': downloaded_files,
+                            'title': title[:150],
+                            'count': len(downloaded_files)
+                        }
+        except Exception as fb_err:
+            logger.warning(f"Facebook direct image download error: {fb_err}")
+
+    # 3. Try with yt-dlp
     try:
         unique_id = uuid.uuid4().hex[:8]
         ydl_opts = {
@@ -383,6 +667,8 @@ def download_images_sync(url: str) -> Dict[str, Any]:
             'quiet': True,
             'no_warnings': True,
             'http_headers': DEFAULT_HEADERS,
+            'js_runtimes': {'node': {}},
+            'remote_components': ['ejs:github', 'ejs:npm'],
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(target_url, download=True)
@@ -457,9 +743,9 @@ async def extract_media_info(url: str) -> Dict[str, Any]:
     """Async wrapper around extract_media_info_sync."""
     return await asyncio.to_thread(extract_media_info_sync, url)
 
-async def download_media(url: str, is_audio: bool = False, quality: str = "720") -> Dict[str, Any]:
+async def download_media(url: str, is_audio: bool = False, quality: str = "720", task_id: Optional[str] = None) -> Dict[str, Any]:
     """Async wrapper around download_media_sync."""
-    return await asyncio.to_thread(download_media_sync, url, is_audio, quality)
+    return await asyncio.to_thread(download_media_sync, url, is_audio, quality, task_id)
 
 async def download_images(url: str) -> Dict[str, Any]:
     """Async wrapper around download_images_sync."""
@@ -469,8 +755,22 @@ async def download_images(url: str) -> Dict[str, Any]:
 # Direct URL Extraction — No disk storage, browser downloads from CDN directly
 # ---------------------------------------------------------------------------
 
-# Platforms where a plain browser can fetch the CDN URL without extra headers
-DIRECT_REDIRECT_PLATFORMS = ("instagram.com", "tiktok.com", "twitter.com", "x.com", "pinterest.com", "pin.it")
+# Platforms where a plain browser / Telegram can fetch the CDN URL directly without extra headers
+DIRECT_REDIRECT_PLATFORMS = (
+    "instagram.com",
+    "tiktok.com",
+    "twitter.com",
+    "x.com",
+    "pinterest.com",
+    "pin.it",
+    "facebook.com",
+    "fb.watch",
+    "fb.me",
+    "fb.com",
+    "threads.net",
+    "reddit.com",
+    "vimeo.com",
+)
 
 def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = False) -> Dict[str, Any]:
     """
@@ -484,6 +784,7 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
         'title':       str,
         'ext':         str,
         'filesize':    int | None,          # may be None if unknown
+        'duration':    int | None,
         'headers':     dict,               # headers browser should send (empty for redirect)
         'error':       str | None,
       }
@@ -492,60 +793,97 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
     url_lower = target_url.lower()
 
     # ------------------------------------------------------------------
-    # 1. Instagram — use GraphQL to get direct CDN URL (no yt-dlp needed)
+    # 1. Instagram — GraphQL & HTML fallback (multi-photo carousel support)
     # ------------------------------------------------------------------
     ig_match = re.search(r'instagram\.com/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)', target_url)
     if ig_match:
         shortcode = ig_match.group(1)
-        ig_data = extract_instagram_graphql(shortcode)
-        if ig_data:
-            caption_edges = ig_data.get('edge_media_to_caption', {}).get('edges', [])
-            title = caption_edges[0].get('node', {}).get('text', 'Instagram Post') if caption_edges else 'Instagram Post'
-            is_video = ig_data.get('is_video', False)
-
-            if is_video and not is_audio:
-                video_url = ig_data.get('video_url')
-                if video_url:
-                    return {
-                        'mode': 'redirect',
-                        'direct_url': video_url,
-                        'image_urls': None,
-                        'title': title[:150],
-                        'ext': 'mp4',
-                        'filesize': None,
-                        'headers': {},
-                        'error': None,
-                    }
-
-            # Carousel or single photo
-            children = ig_data.get('edge_sidecar_to_children', {}).get('edges', [])
-            if children:
-                image_urls = [c.get('node', {}).get('display_url') for c in children if c.get('node', {}).get('display_url')]
+        ig_info = extract_instagram_post_info(target_url, shortcode)
+        if ig_info:
+            title = ig_info.get('title', 'Instagram Post')
+            if ig_info.get('is_album') and ig_info.get('photos'):
                 return {
                     'mode': 'images',
                     'direct_url': None,
-                    'image_urls': image_urls,
+                    'image_urls': ig_info['photos'],
                     'title': title[:150],
                     'ext': 'jpg',
                     'filesize': None,
+                    'duration': None,
                     'headers': {},
                     'error': None,
                 }
-            display_url = ig_data.get('display_url')
-            if display_url:
+            elif ig_info.get('thumbnail') and not ig_info.get('duration') and not is_audio:
                 return {
                     'mode': 'redirect',
-                    'direct_url': display_url,
-                    'image_urls': None,
+                    'direct_url': ig_info['thumbnail'],
+                    'image_urls': [ig_info['thumbnail']],
                     'title': title[:150],
                     'ext': 'jpg',
                     'filesize': None,
+                    'duration': None,
                     'headers': {},
                     'error': None,
                 }
 
     # ------------------------------------------------------------------
-    # 2. yt-dlp metadata extraction (no download) for all other platforms
+    # 2. Facebook — Crawler check for photo posts & multi-photo albums
+    # ------------------------------------------------------------------
+    if any(x in url_lower for x in ["facebook.com", "fb.watch", "fb.me", "fb.com"]):
+        try:
+            s = requests.Session()
+            s.headers.update({
+                'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            })
+            r = s.get(target_url, allow_redirects=True, timeout=8)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, 'html.parser')
+                og_type = soup.find('meta', property='og:type')
+                og_type_val = og_type.get('content', '') if og_type else ''
+                
+                fb_images = []
+                og_img = soup.find('meta', property='og:image')
+                if og_img and og_img.get('content') and og_img['content'].startswith('http'):
+                    fb_images.append(og_img['content'])
+                for img in soup.find_all('img'):
+                    src = img.get('src') or img.get('data-src')
+                    if src and 'fbcdn.net' in src and not any(x in src for x in ['static.', 'rsrc.', 'emoji', 'icon', 'p50x50', 'p100x100']):
+                        if src not in fb_images:
+                            fb_images.append(src)
+                
+                if fb_images and 'video' not in og_type_val:
+                    og_title = soup.find('meta', property='og:title')
+                    fb_title = og_title.get('content') if og_title else 'Facebook Post'
+                    if len(fb_images) > 1:
+                        return {
+                            'mode': 'images',
+                            'direct_url': None,
+                            'image_urls': fb_images,
+                            'title': fb_title[:150],
+                            'ext': 'jpg',
+                            'filesize': None,
+                            'duration': None,
+                            'headers': {},
+                            'error': None,
+                        }
+                    else:
+                        return {
+                            'mode': 'redirect',
+                            'direct_url': fb_images[0],
+                            'image_urls': fb_images,
+                            'title': fb_title[:150],
+                            'ext': 'jpg',
+                            'filesize': None,
+                            'duration': None,
+                            'headers': {},
+                            'error': None,
+                        }
+        except Exception as fb_err:
+            logger.warning(f"Facebook direct check: {fb_err}")
+
+    # ------------------------------------------------------------------
+    # 2. yt-dlp metadata extraction (no download) for all platforms
     # ------------------------------------------------------------------
     COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
     temp_cookie = None
@@ -566,8 +904,13 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
         'format': fmt,
         'quiet': True,
         'no_warnings': True,
-        'skip_download': True,   # ← key: metadata only, no file written
+        'skip_download': True,   # ← key: metadata only, 0 bytes written to disk
         'noplaylist': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web', 'ios', 'mweb'],
+            }
+        },
     }
 
     if os.path.exists(COOKIE_FILE):
@@ -581,9 +924,31 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
 
         if not info:
             return {'mode': 'stream', 'direct_url': None, 'image_urls': None,
-                    'title': 'Media', 'ext': 'mp4', 'filesize': None, 'headers': {}, 'error': 'No info extracted'}
+                    'title': 'Media', 'ext': 'mp4', 'filesize': None, 'duration': None, 'headers': {}, 'error': 'No info extracted'}
 
         title = info.get('title', 'Media')
+        duration = info.get('duration', 0)
+
+        # Check if it's an image playlist / multi-image post
+        entries = info.get('entries')
+        if entries:
+            # Multi-item playlist / album
+            img_urls = []
+            for entry in entries:
+                if entry and entry.get('url'):
+                    img_urls.append(entry.get('url'))
+            if img_urls:
+                return {
+                    'mode': 'images',
+                    'direct_url': None,
+                    'image_urls': img_urls,
+                    'title': title[:150],
+                    'ext': 'jpg',
+                    'filesize': None,
+                    'duration': None,
+                    'headers': {},
+                    'error': None,
+                }
 
         # Resolve the best format URL
         formats = info.get('formats') or []
@@ -597,9 +962,20 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
         else:
             # Pick best video format that fits requested height
             h = int(height)
-            video_fmts = [f for f in formats if f.get('url') and (f.get('height') or 0) <= h and f.get('vcodec') != 'none']
-            if video_fmts:
-                chosen = max(video_fmts, key=lambda f: (f.get('height') or 0, f.get('tbr') or 0))
+            # Prioritize progressive formats (both audio and video in single stream) for direct CDN playback
+            complete_video_fmts = [
+                f for f in formats 
+                if f.get('url') 
+                and (f.get('height') or 0) <= h 
+                and f.get('vcodec') != 'none' 
+                and f.get('acodec') not in ('none', None)
+            ]
+            if complete_video_fmts:
+                chosen = max(complete_video_fmts, key=lambda f: (f.get('height') or 0, f.get('tbr') or 0))
+            else:
+                video_fmts = [f for f in formats if f.get('url') and (f.get('height') or 0) <= h and f.get('vcodec') != 'none']
+                if video_fmts:
+                    chosen = max(video_fmts, key=lambda f: (f.get('height') or 0, f.get('tbr') or 0))
 
         # Fallback to top-level url
         direct_url = (chosen or {}).get('url') or info.get('url')
@@ -608,20 +984,19 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
         http_headers = (chosen or {}).get('http_headers') or info.get('http_headers') or {}
 
         # Decide mode:
-        # - Platforms where browser can directly fetch the URL → redirect
-        # - YouTube and others that need auth/special headers → proxy stream
+        # - Platforms where browser / Telegram can directly fetch the URL → redirect
+        # - YouTube and others that need auth/special headers or audio merge → proxy stream
         is_direct_platform = any(p in url_lower for p in DIRECT_REDIRECT_PLATFORMS)
-        needs_merge = (
-            not is_audio
-            and chosen
-            and chosen.get('vcodec') != 'none'
-            and not chosen.get('acodec', 'none') not in ('none', None)
-        )
+        
+        # Check if video has separate audio that needs merge (e.g. YouTube DASH)
+        has_audio = (chosen or {}).get('acodec') not in ('none', None) if chosen else True
 
-        if is_direct_platform and direct_url and not is_audio:
+        if is_direct_platform and direct_url and (is_audio or has_audio):
+            mode = 'redirect'
+        elif is_direct_platform and direct_url:
             mode = 'redirect'
         else:
-            # YouTube or audio that needs FFmpeg merge → stream through VPS (no disk)
+            # YouTube or formats that need streaming
             mode = 'stream'
 
         return {
@@ -631,6 +1006,7 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
             'title': title[:150],
             'ext': ext,
             'filesize': filesize,
+            'duration': int(duration) if duration else None,
             'headers': http_headers,
             'error': None,
         }
@@ -644,6 +1020,7 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
             'title': 'Media',
             'ext': 'mp4',
             'filesize': None,
+            'duration': None,
             'headers': {},
             'error': str(e)[:200],
         }

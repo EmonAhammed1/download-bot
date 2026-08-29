@@ -32,6 +32,7 @@ from downloader import (
     download_images,
     cleanup_file,
     cleanup_files,
+    PROGRESS_STORE,
     DOWNLOAD_DIR
 )
 
@@ -69,6 +70,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_no_cache_headers(request: Request, call_next):
+    """Ensure browser never caches outdated static assets during updates."""
+    response = await call_next(request)
+    if request.url.path.startswith("/static"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
@@ -88,22 +99,38 @@ class DownloadRequest(BaseModel):
     url: str
     quality: str = "720"
     is_audio: bool = False
+    task_id: Optional[str] = None
 
 class DirectRequest(BaseModel):
     url: str
     quality: str = "720"
     is_audio: bool = False
+    task_id: Optional[str] = None
 
 @app.get("/", response_class=HTMLResponse)
 async def home_page(request: Request):
     """Serve the sleek Web Downloader UI."""
     debugPrint(f"GET / from {request.client.host if request.client else 'unknown'}")
-    return templates.TemplateResponse(request=request, name="index.html")
+    return templates.TemplateResponse(request=request, name="index.html", context={"v": int(time.time())})
 
 @app.get("/health")
 async def health_check():
     """Health check for uptime monitoring."""
     return {"status": "ok", "app": "Universal Media Downloader"}
+
+@app.get("/api/progress/{task_id}")
+async def get_progress(task_id: str):
+    """Real-time progress reporting for downloading and processing media."""
+    prog = PROGRESS_STORE.get(task_id, {
+        'status': 'starting',
+        'percent': 0,
+        'downloaded_mb': 0,
+        'total_mb': 0,
+        'speed': '',
+        'eta': '',
+        'msg': 'Connecting to server...'
+    })
+    return JSONResponse(content=prog)
 
 @app.post("/api/info")
 async def get_media_info(req: InfoRequest):
@@ -245,9 +272,9 @@ async def get_direct_url(req: DirectRequest):
     Extract the direct CDN URL for the requested media.
 
     Response modes:
-      - redirect: { mode, direct_url, title, ext }  — browser opens URL directly
-      - stream:   { mode, stream_url, title, ext }   — browser hits /api/stream/{token}
-      - images:   { mode, image_urls, title }        — list of direct image URLs
+      - redirect: { mode, direct_url, title, ext, filename }  — browser opens URL directly (IG, FB, TikTok, Twitter, Pinterest)
+      - images:   { mode, image_urls, title, filename }        — direct image CDN URLs
+      - download: { mode, download_url, title, ext, filename, filesize_mb } — reliable yt-dlp fetch with instant auto-cleanup (YouTube/Audio)
     """
     debugPrint(f"API HIT: /api/direct | URL: {req.url} | quality: {req.quality} | audio: {req.is_audio}")
 
@@ -261,9 +288,6 @@ async def get_direct_url(req: DirectRequest):
         logger.error(f"/api/direct error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to extract media URL: {str(e)[:150]}")
 
-    if result.get('error') and not result.get('direct_url'):
-        raise HTTPException(status_code=500, detail=result['error'])
-
     mode = result.get('mode', 'stream')
     title = result.get('title', 'Media')
     ext   = result.get('ext', 'mp4')
@@ -272,16 +296,57 @@ async def get_direct_url(req: DirectRequest):
     safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '_', '-')).strip()[:80] or "media"
     filename = f"{safe_title}.{ext}"
 
-    if mode == 'images':
-        debugPrint(f"/api/direct → images ({len(result.get('image_urls') or [])} URLs)")
+    # 1. Check for ZIP Album download
+    if req.quality in ['img_zip', 'album_zip']:
+        debugPrint(f"/api/direct → Creating ZIP archive of post images...")
+        img_res = await download_images(extracted_url)
+        img_paths = img_res.get('image_paths', [])
+        if img_paths:
+            import zipfile
+            zip_filename = f"{safe_title}_album_{uuid.uuid4().hex[:6]}.zip"
+            zip_path = os.path.join(DOWNLOAD_DIR, zip_filename)
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for idx, ip in enumerate(img_paths):
+                    if os.path.exists(ip):
+                        ext_part = os.path.splitext(ip)[1] or '.jpg'
+                        zf.write(ip, f"{safe_title}_{idx+1}{ext_part}")
+            
+            # Clean individual images
+            cleanup_files(img_paths)
+            
+            zip_size = os.path.getsize(zip_path)
+            file_id = uuid.uuid4().hex[:12]
+            ACTIVE_DOWNLOADS[file_id] = {
+                "file_path": zip_path,
+                "filename": f"{safe_title}.zip",
+                "filesize": zip_size
+            }
+            asyncio.create_task(cleanup_after_download(zip_path, file_id, 180))
+            return JSONResponse({
+                'mode': 'download',
+                'download_url': f"/api/file/{file_id}",
+                'title': title,
+                'ext': 'zip',
+                'filename': f"{safe_title}.zip",
+                'filesize': zip_size,
+                'filesize_mb': round(zip_size / (1024 * 1024), 2)
+            })
+
+    # 2. Images mode
+    if mode == 'images' or req.quality in ['album', 'img', 'images']:
+        image_urls = result.get('image_urls') or []
+        if not image_urls and result.get('direct_url') and result.get('ext') in ['jpg', 'jpeg', 'png', 'webp']:
+            image_urls = [result.get('direct_url')]
+        debugPrint(f"/api/direct → images ({len(image_urls)} URLs)")
         return JSONResponse({
             'mode': 'images',
-            'image_urls': result.get('image_urls') or [],
+            'image_urls': image_urls,
             'title': title,
             'filename': filename,
         })
 
-    if mode == 'redirect':
+    # 3. Redirect mode (Direct CDN for Instagram, Facebook, TikTok, Twitter, Pinterest)
+    if mode == 'redirect' and result.get('direct_url'):
         debugPrint(f"/api/direct → redirect | URL: {str(result.get('direct_url'))[:80]}")
         return JSONResponse({
             'mode': 'redirect',
@@ -291,22 +356,88 @@ async def get_direct_url(req: DirectRequest):
             'filename': filename,
         })
 
-    # mode == 'stream' — create a short-lived token for proxy streaming
-    token = uuid.uuid4().hex[:16]
-    STREAM_TOKENS[token] = {
-        'direct_url': result.get('direct_url'),
-        'headers':    result.get('headers') or {},
-        'filename':   filename,
-        'expires':    time.time() + 300,   # 5-minute window
+    # 3. For YouTube / Streams that require merging or token signing (Prevent 403 Forbidden 0-byte downloads)
+    debugPrint(f"/api/direct → YouTube/Stream mode. Downloading via yt-dlp with auto-cleanup (task_id={req.task_id})...")
+    try:
+        dl_result = await download_media(extracted_url, is_audio=req.is_audio, quality=req.quality, task_id=req.task_id)
+        file_path = dl_result.get('file_path')
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(status_code=500, detail="Failed to prepare video file.")
+
+        file_size = os.path.getsize(file_path)
+        file_id = uuid.uuid4().hex[:12]
+        dl_ext = dl_result.get('ext', ext)
+        download_filename = f"{safe_title}.{dl_ext}"
+
+        ACTIVE_DOWNLOADS[file_id] = {
+            "file_path": file_path,
+            "filename": download_filename,
+            "filesize": file_size
+        }
+
+        # Schedule auto-cleanup in 120s
+        asyncio.create_task(cleanup_after_download(file_path, file_id, 120))
+
+        debugPrint(f"/api/direct → download ready | file_id={file_id} | size={round(file_size/(1024*1024), 2)}MB")
+        return JSONResponse({
+            'mode': 'download',
+            'download_url': f"/api/file/{file_id}",
+            'title': title,
+            'ext': dl_ext,
+            'filename': download_filename,
+            'filesize': file_size,
+            'filesize_mb': round(file_size / (1024 * 1024), 2)
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Download stream error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)[:150]}")
+
+
+@app.get("/api/download_image")
+async def download_image_proxy(url: str, filename: str = "photo.jpg"):
+    """
+    Stream image directly from CDN with Content-Disposition: attachment header.
+    Forces browser to download the file into user's downloads folder instead of opening in a tab.
+    Zero disk storage on VPS (pure memory streaming).
+    """
+    if not url or not url.startswith("http"):
+        raise HTTPException(status_code=400, detail="Invalid image URL")
+    
+    # Clean filename
+    safe_name = "".join(c for c in filename if c.isalnum() or c in (' ', '_', '-', '.')).strip() or "photo.jpg"
+    if not any(safe_name.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp']):
+        safe_name += ".jpg"
+    
+    img_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
     }
-    debugPrint(f"/api/direct → stream | token={token} | URL={str(result.get('direct_url'))[:60]}")
-    return JSONResponse({
-        'mode': 'stream',
-        'stream_url': f"/api/stream/{token}",
-        'title': title,
-        'ext': ext,
-        'filename': filename,
-    })
+
+    async def _image_stream_generator():
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            async with client.stream("GET", url, headers=img_headers) as resp:
+                if resp.status_code != 200:
+                    yield b""
+                    return
+                async for chunk in resp.aiter_bytes(chunk_size=65536):
+                    yield chunk
+
+    media_type = "image/jpeg"
+    if safe_name.lower().endswith(".png"):
+        media_type = "image/png"
+    elif safe_name.lower().endswith(".webp"):
+        media_type = "image/webp"
+
+    return StreamingResponse(
+        _image_stream_generator(),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}"',
+            "Cache-Control": "no-cache",
+        }
+    )
 
 
 @app.get("/api/stream/{token}")
