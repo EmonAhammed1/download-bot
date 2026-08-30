@@ -52,6 +52,7 @@ def debugPrint(msg: str):
 # Temporary in-memory cache for pending URLs per user/message
 PENDING_URLS = {}
 
+WEBSITE_URL = "http://72.244.153.23"
 PORTFOLIO_URL = "https://emonahammed.shop/"
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -75,12 +76,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🚀 <b>How to Download:</b>\n"
         f"Simply copy & send any video or post link here!\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🌐 <b>Web App:</b> <a href=\"{WEBSITE_URL}\">Universal Downloader Web</a>\n"
         f"👨‍💻 <b>Developer:</b> <a href=\"{PORTFOLIO_URL}\">Emon Ahammed</a>"
     )
     
     keyboard = [
         [
-            InlineKeyboardButton("🌐 Developer Portfolio", url=PORTFOLIO_URL),
+            InlineKeyboardButton("🌐 Open Web App", url=WEBSITE_URL),
+            InlineKeyboardButton("👨‍💻 Developer Portfolio", url=PORTFOLIO_URL),
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -90,18 +93,24 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command."""
     debugPrint("Help command received")
     help_text = (
-        "⚡ <b>UNIVERSAL DOWNLOADER — HELP GUIDE</b>\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "1. <b>Copy Link:</b> Copy the link of any video, reel, or photo post.\n"
-        "2. <b>Send Link:</b> Paste and send the link in this chat.\n"
-        "3. <b>Select Format:</b> Choose your preferred quality:\n"
-        "   • 🎬 <b>1080p FHD / 720p HD</b> (High Definition Video)\n"
-        "   • 📱 <b>480p SD / 360p Fast</b> (Data Saver)\n"
-        "   • 🖼️ <b>All Photos</b> (Carousel & Album Extraction)\n"
-        "   • 🎵 <b>320kbps MP3</b> (High-Fidelity Audio)\n\n"
-        "⚡ Fast direct streaming engine delivers media directly to your chat without delay."
+        f"⚡ <b>UNIVERSAL DOWNLOADER — HELP GUIDE</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"1. <b>Copy Link:</b> Copy the link of any video, reel, or photo post.\n"
+        f"2. <b>Send Link:</b> Paste and send the link in this chat.\n"
+        f"3. <b>Select Format:</b> Choose your preferred quality:\n"
+        f"   • 🎬 <b>1080p FHD / 720p HD</b> (High Definition Video)\n"
+        f"   • 📱 <b>480p SD / 360p Fast</b> (Data Saver)\n"
+        f"   • 🖼️ <b>All Photos</b> (Carousel & Album Extraction)\n"
+        f"   • 🎵 <b>320kbps MP3</b> (High-Fidelity Audio)\n\n"
+        f"🌐 <b>Website:</b> <a href=\"{WEBSITE_URL}\">{WEBSITE_URL}</a>\n"
+        f"⚡ Fast direct streaming engine delivers media directly to your chat without delay."
     )
-    await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
+    keyboard = [
+        [
+            InlineKeyboardButton("🌐 Open Web App", url=WEBSITE_URL),
+        ]
+    ]
+    await update.message.reply_text(help_text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard), disable_web_page_preview=True)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Detect and process incoming link from message."""
@@ -112,8 +121,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not raw_url:
         debugPrint("No valid URL found in message")
         await update.message.reply_text(
-            "❌ <b>No valid link found!</b>\n\nPlease send a valid video, reel, or post URL.",
-            parse_mode=ParseMode.HTML
+            f"❌ <b>No valid link found!</b>\n\n"
+            f"Please send a valid video, reel, or post URL.\n"
+            f"🌐 Or download directly via our <a href=\"{WEBSITE_URL}\">Web App</a>.",
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True
         )
         return
 
@@ -159,6 +171,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("🎵 320kbps MP3", callback_data=f"aud_mp3:{cache_key}"),
         ],
         [
+            InlineKeyboardButton("🌐 Open in Web App", url=WEBSITE_URL),
             InlineKeyboardButton("❌ Cancel", callback_data=f"cancel:{cache_key}")
         ]
     ]
@@ -224,11 +237,18 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"🖼️ <b>{title_safe}</b>\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"📸 Total Photos: <b>{count}</b>\n"
+                    f"🌐 <b>Web App:</b> <a href=\"{WEBSITE_URL}\">Universal Downloader</a>\n"
                     f"✨ @{bot_username}"
                 )
 
+                download_btn = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("⚡ Direct HD Photo", url=image_urls[0]),
+                        InlineKeyboardButton("🌐 Web App", url=WEBSITE_URL)
+                    ]
+                ])
+
                 if count == 1:
-                    download_btn = InlineKeyboardMarkup([[InlineKeyboardButton("⚡ Direct HD Photo", url=image_urls[0])]])
                     await context.bot.send_photo(
                         chat_id=query.message.chat_id,
                         photo=image_urls[0],
@@ -286,9 +306,11 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if not downloaded_images or count == 0:
                 await query.edit_message_text(
-                    "❌ <b>No downloadable photos found in this post.</b>\n"
-                    "If this post is a video, please select a video quality option.",
-                    parse_mode=ParseMode.HTML
+                    f"❌ <b>No downloadable photos found in this post.</b>\n\n"
+                    f"If this post is a video, please select a video quality option.\n"
+                    f"🌐 Or try on our <a href=\"{WEBSITE_URL}\">Web App</a>.",
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=True
                 )
                 return
 
@@ -301,6 +323,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🖼️ <b>{title_safe}</b>\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"📸 Total Photos: <b>{count}</b>\n"
+                f"🌐 <b>Web App:</b> <a href=\"{WEBSITE_URL}\">Universal Downloader</a>\n"
                 f"✨ @{bot_username}"
             )
 
@@ -355,8 +378,10 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             err_msg = html.escape(str(e)[:200])
             await query.edit_message_text(
                 f"❌ <b>Error occurred:</b> <code>{err_msg}</code>\n\n"
-                "Please make sure the post is public and accessible.",
-                parse_mode=ParseMode.HTML
+                f"Please make sure the post is public and accessible.\n"
+                f"🌐 Web App: <a href=\"{WEBSITE_URL}\">{WEBSITE_URL}</a>",
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True
             )
         finally:
             for f in open_files:
@@ -406,12 +431,16 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🎬 <b>{title_safe}</b>\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"📊 <b>Quality:</b> {quality_label}\n"
+                f"🌐 <b>Web App:</b> <a href=\"{WEBSITE_URL}\">Universal Downloader</a>\n"
                 f"✨ @{bot_username}"
             )
 
-            direct_btn = InlineKeyboardMarkup([[
-                InlineKeyboardButton("⚡ Direct High-Speed Download", url=direct_url)
-            ]])
+            direct_btn = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("⚡ Direct High-Speed Download", url=direct_url),
+                    InlineKeyboardButton("🌐 Web App", url=WEBSITE_URL)
+                ]
+            ])
 
             if is_audio:
                 await context.bot.send_audio(
@@ -466,8 +495,11 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if not file_path or not os.path.exists(file_path):
             await query.edit_message_text(
-                "❌ <b>Could not download media.</b>\nThe link might be private, expired, or unsupported.",
-                parse_mode=ParseMode.HTML
+                f"❌ <b>Could not download media.</b>\n"
+                f"The link might be private, expired, or unsupported.\n"
+                f"🌐 Try on our Web App: <a href=\"{WEBSITE_URL}\">{WEBSITE_URL}</a>",
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True
             )
             return
 
@@ -481,15 +513,20 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ],
                 [
                     InlineKeyboardButton("🎵 320kbps MP3", callback_data=f"aud_mp3:{cache_key}"),
+                ],
+                [
+                    InlineKeyboardButton("🌐 Download via Web App (No Limits)", url=WEBSITE_URL),
                 ]
             ])
             await query.edit_message_text(
                 f"⚠️ <b>File Exceeds Telegram Bot Limit ({size_mb} MB)!</b>\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"Telegram bot upload limit is <b>50 MB</b>.\n\n"
-                f"💡 <b>Please select a lower resolution:</b>",
+                f"💡 <b>No Size Limit on Web App:</b> You can download this in full 4K / original resolution on our Web App:\n"
+                f"👉 <a href=\"{WEBSITE_URL}\">Universal Downloader Web</a>",
                 reply_markup=retry_keyboard,
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True
             )
             if file_path:
                 cleanup_file(file_path)
@@ -504,6 +541,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🎬 <b>{title_safe}</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"📊 <b>Quality:</b> {quality_label}\n"
+            f"🌐 <b>Web App:</b> <a href=\"{WEBSITE_URL}\">Universal Downloader</a>\n"
             f"✨ @{bot_username}"
         )
 
@@ -554,8 +592,10 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         err_msg = html.escape(str(e)[:200])
         await query.edit_message_text(
             f"❌ <b>Error occurred:</b> <code>{err_msg}</code>\n\n"
-            "Please make sure the link is public and valid.",
-            parse_mode=ParseMode.HTML
+            f"Please make sure the link is public and valid.\n"
+            f"🌐 Web App: <a href=\"{WEBSITE_URL}\">{WEBSITE_URL}</a>",
+            parse_mode=ParseMode.HTML,
+            disable_web_page_preview=True
         )
         PENDING_URLS.pop(cache_key, None)
     finally:
