@@ -28,6 +28,7 @@ from config import BOT_TOKEN, MAX_FILE_SIZE
 from downloader import (
     extract_url,
     clean_url,
+    clean_media_title,
     check_profile_link,
     get_platform_name,
     extract_direct_url,
@@ -51,41 +52,54 @@ def debugPrint(msg: str):
 # Temporary in-memory cache for pending URLs per user/message
 PENDING_URLS = {}
 
+PORTFOLIO_URL = "https://emonahammed.shop/"
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle /start command."""
+    """Handle /start command with stylish Universal Downloader branding."""
     user = update.effective_user
-    first_name = html.escape(user.first_name if user and user.first_name else "ব্যবহারকারী")
+    first_name = html.escape(user.first_name if user and user.first_name else "User")
     debugPrint(f"/start command from user: {user.id if user else 'unknown'} ({first_name})")
+    
     welcome_text = (
-        f"👋 <b>স্বাগতম {first_name}!</b>\n\n"
-        "✨ আমি একটি <b>Universal Media Downloader Bot</b>।\n"
-        "যেকোনো ভিডিও, ফটো/পোস্ট বা অডিও ডাউনলোড করতে লিঙ্ক পাঠান।\n\n"
-        "📥 <b>সমর্থিত প্ল্যাটফর্মসমূহ:</b>\n"
-        "• 📸 <b>Instagram</b> (Reels, Posts, Carousel Photos, Stories)\n"
-        "• 🔵 <b>Facebook</b> (Videos, Reels, Photo Posts)\n"
-        "• 🔴 <b>YouTube</b> (Videos, Shorts, Music)\n"
-        "• 🎵 <b>TikTok</b> (Without watermark)\n"
-        "• 🐦 <b>Twitter / X</b>\n"
-        "• 📌 <b>Pinterest</b>\n\n"
-        "🚀 <b>ব্যবহার করার নিয়ম:</b>\n"
-        "সরাসরি যেকোনো পোস্ট বা ভিডিওর লিঙ্ক এখানে মেসেজ হিসেবে পাঠিয়ে দিন!\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "👨‍💻 <b>Developed by Emon</b>"
+        f"⚡ <b>UNIVERSAL DOWNLOADER</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👋 <b>Welcome, {first_name}!</b>\n\n"
+        f"High-speed media engine to download 4K videos, 320kbps MP3 audio, and photo albums with zero limits.\n\n"
+        f"📥 <b>Supported Platforms:</b>\n"
+        f"• 📸 <b>Instagram</b> — Reels, Posts, Carousels, Stories\n"
+        f"• 🔵 <b>Facebook</b> — Reels, Videos, Watch, Posts\n"
+        f"• 🔴 <b>YouTube</b> — Videos, Shorts, Music\n"
+        f"• 🎵 <b>TikTok</b> — HD without watermark\n"
+        f"• 🐦 <b>Twitter / X</b> — Clips, Media\n"
+        f"• 📌 <b>Pinterest</b> — Videos, High-Res Pins\n\n"
+        f"🚀 <b>How to Download:</b>\n"
+        f"Simply copy & send any video or post link here!\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👨‍💻 <b>Developer:</b> <a href=\"{PORTFOLIO_URL}\">Emon Ahammed</a>"
     )
-    await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML)
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("🌐 Developer Portfolio", url=PORTFOLIO_URL),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(welcome_text, parse_mode=ParseMode.HTML, reply_markup=reply_markup, disable_web_page_preview=True)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command."""
     debugPrint("Help command received")
     help_text = (
-        "📖 <b>বট ব্যবহারের সহায়িকা:</b>\n\n"
-        "১. যেকোনো ভিডিও, পোস্ট বা ফটোর লিঙ্ক কপি করুন।\n"
-        "২. এখানে চ্যাটে পেস্ট করে সেন্ড করুন।\n"
-        "৩. আপনার পছন্দের অপশন বেছে নিন:\n"
-        "   - 🎬 <b>Video (1080p, 720p, 480p, 360p)</b>\n"
-        "   - 🖼️ <b>Images (পোস্টের সব ছবি)</b>\n"
-        "   - 🎵 <b>MP3 Audio</b>\n"
-        "৪. বট কোনো সার্ভার লোড ছাড়াই সরাসরি আপনার ইনবক্সে পাঠিয়ে দেবে।"
+        "⚡ <b>UNIVERSAL DOWNLOADER — HELP GUIDE</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "1. <b>Copy Link:</b> Copy the link of any video, reel, or photo post.\n"
+        "2. <b>Send Link:</b> Paste and send the link in this chat.\n"
+        "3. <b>Select Format:</b> Choose your preferred quality:\n"
+        "   • 🎬 <b>1080p FHD / 720p HD</b> (High Definition Video)\n"
+        "   • 📱 <b>480p SD / 360p Fast</b> (Data Saver)\n"
+        "   • 🖼️ <b>All Photos</b> (Carousel & Album Extraction)\n"
+        "   • 🎵 <b>320kbps MP3</b> (High-Fidelity Audio)\n\n"
+        "⚡ Fast direct streaming engine delivers media directly to your chat without delay."
     )
     await update.message.reply_text(help_text, parse_mode=ParseMode.HTML)
 
@@ -98,7 +112,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not raw_url:
         debugPrint("No valid URL found in message")
         await update.message.reply_text(
-            "❌ কোনো সঠিক লিঙ্ক পাওয়া যায়নি। দয়া করে একটি সঠিক ভিডিও বা পোস্ট লিঙ্ক পাঠান।"
+            "❌ <b>No valid link found!</b>\n\nPlease send a valid video, reel, or post URL.",
+            parse_mode=ParseMode.HTML
         )
         return
 
@@ -112,13 +127,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         safe_username = html.escape(username)
         debugPrint(f"Profile link detected: {platform_type} @{username}")
         await update.message.reply_text(
-            f"👤 <b>{platform_type} প্রোফাইল লিঙ্ক শনাক্ত হয়েছে:</b> <code>@{safe_username}</code>\n\n"
-            f"⚠️ এটি একটি <b>ব্যবহারকারীর অ্যাকাউন্ট / প্রোফাইল লিঙ্ক</b> (কোনো নির্দিষ্ট পোস্ট বা রিলস নয়)।\n\n"
-            f"💡 <b>কীভাবে ভিডিও বা ছবি ডাউনলোড করবেন:</b>\n"
-            f"১. {platform_type} অ্যাপে যান।\n"
-            f"২. যে <b>Reels (ভিডিও)</b> বা <b>Post (ছবি)</b> ডাউনলোড করতে চান, সেটিতে যান।\n"
-            f"৩. <b>Share (শেয়ার)</b> আইকনে চাপ দিয়ে <b>Copy Link</b> চাপুন।\n"
-            f"৪. সেই লিঙ্কটি এখানে পাঠালে বট সাথে সাথে সেটি ডাউনলোড করে দেবে!",
+            f"👤 <b>{platform_type} Profile Link Detected:</b> <code>@{safe_username}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"⚠️ This is a <b>user profile link</b>, not a specific video or post.\n\n"
+            f"💡 <b>How to download media:</b>\n"
+            f"1. Open the {platform_type} app.\n"
+            f"2. Go to the specific <b>Reel, Video, or Photo Post</b> you want.\n"
+            f"3. Tap <b>Share ➔ Copy Link</b>.\n"
+            f"4. Send that link here to download instantly!",
             parse_mode=ParseMode.HTML
         )
         return
@@ -131,19 +147,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton("🎥 1080p (Full HD)", callback_data=f"vid_1080:{cache_key}"),
-            InlineKeyboardButton("🎬 720p (HD)", callback_data=f"vid_720:{cache_key}"),
+            InlineKeyboardButton("🎬 1080p Full HD", callback_data=f"vid_1080:{cache_key}"),
+            InlineKeyboardButton("🎬 720p HD", callback_data=f"vid_720:{cache_key}"),
         ],
         [
-            InlineKeyboardButton("📱 480p (SD)", callback_data=f"vid_480:{cache_key}"),
-            InlineKeyboardButton("💾 360p (Saver)", callback_data=f"vid_360:{cache_key}"),
+            InlineKeyboardButton("📱 480p SD", callback_data=f"vid_480:{cache_key}"),
+            InlineKeyboardButton("💾 360p Fast", callback_data=f"vid_360:{cache_key}"),
         ],
         [
-            InlineKeyboardButton("🖼️ Images (সব ছবি)", callback_data=f"img_all:{cache_key}"),
-            InlineKeyboardButton("🎵 MP3 Audio", callback_data=f"aud_mp3:{cache_key}"),
+            InlineKeyboardButton("🖼️ All Photos", callback_data=f"img_all:{cache_key}"),
+            InlineKeyboardButton("🎵 320kbps MP3", callback_data=f"aud_mp3:{cache_key}"),
         ],
         [
-            InlineKeyboardButton("❌ বাতিল করুন", callback_data=f"cancel:{cache_key}")
+            InlineKeyboardButton("❌ Cancel", callback_data=f"cancel:{cache_key}")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -151,11 +167,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     safe_url = html.escape(url)
     debugPrint(f"Sent format options for platform: {platform}")
     await update.message.reply_text(
-        f"🔗 <b>শনাক্তকৃত লিঙ্ক:</b> {platform}\n"
+        f"⚡ <b>UNIVERSAL DOWNLOADER</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🏷️ <b>Platform:</b> {platform}\n"
         f"📎 <code>{safe_url}</code>\n\n"
-        f"🎯 <b>ডাউনলোড অপশন নির্বাচন করুন:</b>",
+        f"🎯 <b>Select Quality to Download:</b>",
         reply_markup=reply_markup,
-        parse_mode=ParseMode.HTML
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True
     )
 
 async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -169,22 +188,22 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if action == "cancel":
         PENDING_URLS.pop(cache_key, None)
-        await query.edit_message_text("❌ ডাউনলোড বাতিল করা হয়েছে।")
+        await query.edit_message_text("❌ <b>Download cancelled.</b>", parse_mode=ParseMode.HTML)
         return
 
     url = PENDING_URLS.get(cache_key)
     if not url:
-        await query.edit_message_text("⚠️ লিঙ্কের মেয়াদ শেষ হয়ে গেছে। দয়া করে আবার লিঙ্কটি পাঠান।")
+        await query.edit_message_text("⚠️ <b>Session expired.</b> Please send the link again.", parse_mode=ParseMode.HTML)
         return
 
     bot_info = await context.bot.get_me()
-    bot_username = bot_info.username if bot_info and bot_info.username else "MediaBot"
+    bot_username = bot_info.username if bot_info and bot_info.username else "UniversalDownloader"
 
     # =========================================================================
     # 1. Handle Images Download (Direct CDN URL first -> Fallback to VPS)
     # =========================================================================
     if action == "img_all":
-        await query.edit_message_text("⏳ পোস্টের ছবিগুলো খোঁজা হচ্ছে...")
+        await query.edit_message_text("⏳ <b>Fetching post images...</b> Please wait.", parse_mode=ParseMode.HTML)
         debugPrint(f"Handling images for {url}")
         
         # Step A: Try direct CDN image URLs first (Zero VPS Disk Usage)
@@ -197,9 +216,16 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if image_urls:
                 count = len(image_urls)
                 debugPrint(f"DIRECT SEND: Found {count} direct image URLs. Sending to Telegram...")
-                title = direct_data.get('title', 'Post Images')
-                title_safe = html.escape(title[:150])
-                caption = f"🖼️ <b>{title_safe}</b>\n\n📸 মোট ছবি: <b>{count}টি</b>\n✨ @{bot_username}"
+                raw_title = direct_data.get('title', 'Post Images')
+                clean_title = clean_media_title(raw_title)
+                title_safe = html.escape(clean_title[:150])
+                caption = (
+                    f"⚡ <b>UNIVERSAL DOWNLOADER</b>\n"
+                    f"🖼️ <b>{title_safe}</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📸 Total Photos: <b>{count}</b>\n"
+                    f"✨ @{bot_username}"
+                )
 
                 if count == 1:
                     download_btn = InlineKeyboardMarkup([[InlineKeyboardButton("⚡ Direct HD Photo", url=image_urls[0])]])
@@ -254,21 +280,29 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             result = await download_images(url)
             downloaded_images = result.get('image_paths', [])
-            title = result.get('title', 'Post Images')
+            raw_title = result.get('title', 'Post Images')
+            clean_title = clean_media_title(raw_title)
             count = len(downloaded_images)
 
             if not downloaded_images or count == 0:
                 await query.edit_message_text(
-                    "❌ এই পোস্টে কোনো ডাউনলোডযোগ্য ছবি পাওয়া যায়নি।\n"
-                    "এটি যদি একটি ভিডিও হয়, তবে ভিডিও অপশন সিলেক্ট করুন।"
+                    "❌ <b>No downloadable photos found in this post.</b>\n"
+                    "If this post is a video, please select a video quality option.",
+                    parse_mode=ParseMode.HTML
                 )
                 return
 
-            await query.edit_message_text(f"📤 {count}টি ছবি টেলিগ্রামে আপলোড হচ্ছে...")
+            await query.edit_message_text(f"📤 <b>Uploading {count} photo(s) to Telegram...</b>", parse_mode=ParseMode.HTML)
             await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.UPLOAD_PHOTO)
 
-            title_safe = html.escape(title[:150])
-            caption = f"🖼️ <b>{title_safe}</b>\n\n📸 মোট ছবি: <b>{count}টি</b>\n✨ @{bot_username}"
+            title_safe = html.escape(clean_title[:150])
+            caption = (
+                f"⚡ <b>UNIVERSAL DOWNLOADER</b>\n"
+                f"🖼️ <b>{title_safe}</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"📸 Total Photos: <b>{count}</b>\n"
+                f"✨ @{bot_username}"
+            )
 
             if count == 1:
                 f = open(downloaded_images[0], 'rb')
@@ -320,8 +354,8 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Error handling images: {e}", exc_info=True)
             err_msg = html.escape(str(e)[:200])
             await query.edit_message_text(
-                f"❌ ত্রুটি হয়েছে: <code>{err_msg}</code>\n\n"
-                "দয়া করে নিশ্চিত করুন লিঙ্কটি পাবলিক ও অ্যাক্সেসযোগ্য।",
+                f"❌ <b>Error occurred:</b> <code>{err_msg}</code>\n\n"
+                "Please make sure the post is public and accessible.",
                 parse_mode=ParseMode.HTML
             )
         finally:
@@ -341,15 +375,15 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action.startswith("vid_"):
         quality = action.split("_")[1]
         is_audio = False
-        status_text = f"⏳ ভিডিও ({quality}p) সরাসরি লোড হচ্ছে..."
+        status_text = f"⏳ <b>Loading video ({quality}p)...</b>"
         quality_label = f"{quality}p HD"
     else:
         quality = "MP3"
         is_audio = True
-        status_text = "⏳ অডিও তৈরি হচ্ছে..."
-        quality_label = "MP3 Audio"
+        status_text = "⏳ <b>Extracting 320kbps MP3 audio...</b>"
+        quality_label = "320kbps MP3 Audio"
     
-    await query.edit_message_text(f"{status_text}\nদয়া করে কিছুক্ষণ অপেক্ষা করুন...")
+    await query.edit_message_text(f"{status_text}\nPlease wait a moment...", parse_mode=ParseMode.HTML)
     debugPrint(f"Handling media: quality={quality}, is_audio={is_audio}, url={url}")
 
     # -------------------------------------------------------------------------
@@ -359,14 +393,21 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         direct_info = await extract_direct_url(url, quality=quality, is_audio=is_audio)
         direct_url = direct_info.get('direct_url')
         mode = direct_info.get('mode')
-        title = direct_info.get('title', 'Media')
+        raw_title = direct_info.get('title', 'Media')
+        clean_title = clean_media_title(raw_title)
         duration = direct_info.get('duration') or 0
         ext = direct_info.get('ext', 'mp4')
 
         if direct_url and (mode == 'redirect' or not is_audio):
             debugPrint(f"DIRECT SEND: Found direct URL {direct_url[:80]}. Sending directly to Telegram...")
-            title_safe = html.escape(title[:200])
-            caption = f"🎬 <b>{title_safe}</b>\n\n📊 কোয়ালিটি: <b>{quality_label}</b>\n✨ @{bot_username}"
+            title_safe = html.escape(clean_title[:200])
+            caption = (
+                f"⚡ <b>UNIVERSAL DOWNLOADER</b>\n"
+                f"🎬 <b>{title_safe}</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"📊 <b>Quality:</b> {quality_label}\n"
+                f"✨ @{bot_username}"
+            )
 
             direct_btn = InlineKeyboardMarkup([[
                 InlineKeyboardButton("⚡ Direct High-Speed Download", url=direct_url)
@@ -376,7 +417,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_audio(
                     chat_id=query.message.chat_id,
                     audio=direct_url,
-                    title=title,
+                    title=clean_title,
                     duration=int(duration) if duration else None,
                     caption=caption,
                     reply_markup=direct_btn,
@@ -417,13 +458,17 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         result = await download_media(url, is_audio=is_audio, quality=quality)
         file_path = result.get('file_path')
-        title = result.get('title', 'Media')
+        raw_title = result.get('title', 'Media')
+        clean_title = clean_media_title(raw_title)
         duration = result.get('duration') or 0
         filesize = result.get('filesize', 0)
         ext = result.get('ext', 'mp4')
 
         if not file_path or not os.path.exists(file_path):
-            await query.edit_message_text("❌ ফাইলটি ডাউনলোড করা সম্ভব হয়নি। লিঙ্কটি প্রাইভেট বা অবৈধ হতে পারে।")
+            await query.edit_message_text(
+                "❌ <b>Could not download media.</b>\nThe link might be private, expired, or unsupported.",
+                parse_mode=ParseMode.HTML
+            )
             return
 
         if filesize > MAX_FILE_SIZE:
@@ -431,17 +476,18 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             retry_keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🎬 720p HD", callback_data=f"vid_720:{cache_key}"),
-                    InlineKeyboardButton("🎬 480p", callback_data=f"vid_480:{cache_key}"),
-                    InlineKeyboardButton("🎬 360p", callback_data=f"vid_360:{cache_key}"),
+                    InlineKeyboardButton("📱 480p SD", callback_data=f"vid_480:{cache_key}"),
+                    InlineKeyboardButton("💾 360p Fast", callback_data=f"vid_360:{cache_key}"),
                 ],
                 [
-                    InlineKeyboardButton("🎵 MP3 Audio (অডিও)", callback_data=f"aud_mp3:{cache_key}"),
+                    InlineKeyboardButton("🎵 320kbps MP3", callback_data=f"aud_mp3:{cache_key}"),
                 ]
             ])
             await query.edit_message_text(
-                f"⚠️ <b>ফাইল সাইজ বেশি বড় ({size_mb} MB)!</b>\n\n"
-                f"টেলিগ্রাম বটের লিমিট সর্বোচ্চ <b>50 MB</b>।\n"
-                f"💡 দয়া করে কম রেজোলিউশন (যেমন: 720p, 480p বা 360p) নির্বাচন করুন:",
+                f"⚠️ <b>File Exceeds Telegram Bot Limit ({size_mb} MB)!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"Telegram bot upload limit is <b>50 MB</b>.\n\n"
+                f"💡 <b>Please select a lower resolution:</b>",
                 reply_markup=retry_keyboard,
                 parse_mode=ParseMode.HTML
             )
@@ -450,10 +496,16 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # Notify user that upload started
-        await query.edit_message_text("📤 টেলিগ্রামে পাঠানো হচ্ছে... দয়া করে অপেক্ষা করুন।")
+        await query.edit_message_text("📤 <b>Uploading media to Telegram...</b> Please wait.", parse_mode=ParseMode.HTML)
 
-        title_safe = html.escape(title[:200])
-        caption = f"🎬 <b>{title_safe}</b>\n\n📊 কোয়ালিটি: <b>{quality_label}</b>\n✨ @{bot_username}"
+        title_safe = html.escape(clean_title[:200])
+        caption = (
+            f"⚡ <b>UNIVERSAL DOWNLOADER</b>\n"
+            f"🎬 <b>{title_safe}</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"📊 <b>Quality:</b> {quality_label}\n"
+            f"✨ @{bot_username}"
+        )
 
         if is_audio:
             await context.bot.send_chat_action(chat_id=query.message.chat_id, action=ChatAction.UPLOAD_VOICE)
@@ -461,7 +513,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_audio(
                     chat_id=query.message.chat_id,
                     audio=f,
-                    title=title,
+                    title=clean_title,
                     duration=int(duration),
                     caption=caption,
                     parse_mode=ParseMode.HTML,
@@ -501,8 +553,8 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Error handling media: {e}", exc_info=True)
         err_msg = html.escape(str(e)[:200])
         await query.edit_message_text(
-            f"❌ ত্রুটি হয়েছে: <code>{err_msg}</code>\n\n"
-            "দয়া করে নিশ্চিত করুন লিঙ্কটি পাবলিক ও অ্যাক্সেসযোগ্য।",
+            f"❌ <b>Error occurred:</b> <code>{err_msg}</code>\n\n"
+            "Please make sure the link is public and valid.",
             parse_mode=ParseMode.HTML
         )
         PENDING_URLS.pop(cache_key, None)
@@ -517,7 +569,7 @@ def main():
         print("Error: BOT_TOKEN is missing in config.py!")
         return
 
-    print("Media Downloader Bot is starting...")
+    print("Universal Downloader Bot is starting...")
     
     # Configure custom HTTP request with extended timeouts for large media uploads
     request_config = HTTPXRequest(
@@ -535,7 +587,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_button))
 
-    print("Media Downloader Bot is running and ready for messages!")
+    print("Universal Downloader Bot is running and ready for messages!")
     app.run_polling()
 
 if __name__ == "__main__":
