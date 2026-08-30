@@ -3,92 +3,90 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Universal Media Downloader — High Speed Video, Audio & Photo Downloader</title>
-  <meta name="description" content="Download YouTube, Facebook, Instagram, TikTok, Twitter/X, and Pinterest videos in 1080p Full HD & MP3 Audio with zero limits.">
+  <title>Universal Downloader — High Speed 4K Video, Audio & Photo Downloader</title>
+  <meta name="description" content="Download YouTube, Facebook, Instagram, TikTok, Twitter/X, and Pinterest videos in 1080p Full HD & MP3 Audio with zero limits. Clean, retro & brutalist interface.">
   
-  <!-- Google Fonts -->
+  <!-- Google Fonts: Space Grotesk + Plus Jakarta Sans + Playfair Display for editorial accent -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,600;1,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700;800;900&display=swap" rel="stylesheet">
 
-  <!-- CSS -->
+  <!-- CSS & Favicon -->
   <link rel="stylesheet" href="/static/css/style.css?v={{ v }}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20%22100%22%20%22100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <link rel="icon" type="image/png" href="/static/img/favicon.png?v={{ v }}">
 </head>
 <body>
 
-  <!-- Ambient Dynamic Glowing Mesh -->
-  <div class="ambient-glow bg-glow-1"></div>
-  <div class="ambient-glow bg-glow-2"></div>
-  <div class="ambient-glow bg-glow-3"></div>
+  <!-- Retro Geometric Floating Shapes Background -->
+  <div class="geo-shape shape-circle-1"></div>
+  <div class="geo-shape shape-square-1"></div>
+  <div class="geo-shape shape-circle-2"></div>
+  <div class="geo-shape shape-diamond-1"></div>
+  <div class="geo-shape shape-circle-3"></div>
 
   <div class="app-container">
 
-    <!-- Top Navigation / Brand Bar -->
+    <!-- Top Navigation / Brand Bar (Retro Brutalism Navbar) -->
     <nav class="top-nav">
-      <div class="brand-badge">
-        <div class="brand-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-          </svg>
+      <a href="/" class="brand-badge">
+        <div class="brand-icon-box">
+          <img src="/static/img/logo.png?v={{ v }}" alt="Universal Downloader" class="brand-logo-img">
         </div>
-        <span class="brand-name">MediaVault Pro</span>
+        <div class="brand-text-wrap">
+          <span class="brand-name">UNIVERSAL<span class="brand-name-highlight">DOWNLOADER</span></span>
+        </div>
+      </a>
+
+      <div class="nav-links">
+        <a href="#downloader-box" class="nav-item active">★ Home</a>
+        <a href="#services" class="nav-item">⚡ What We Deliver</a>
+        <a href="#how-it-works" class="nav-item">📊 Process</a>
+        <a href="#tech-stack" class="nav-item">🛠 Formats</a>
+        <a href="#platforms" class="nav-item">💡 Platforms</a>
       </div>
-      <div class="status-indicator-pill">
-        <span class="live-pulse-dot"></span>
-        <span class="status-pill-text">CDN Engine Online</span>
+
+      <div class="nav-actions">
+        <a href="https://t.me/my1_assistant_demo_bot" target="_blank" rel="noopener noreferrer" class="btn-nav-action btn-nav-telegram-pill" title="Open Telegram Bot (@my1_assistant_demo_bot)">
+          <span class="tg-live-dot"></span>
+          <span class="nav-btn-text-full">✈️ Telegram Bot</span>
+          <span class="nav-btn-text-short">✈️ Bot</span>
+        </a>
       </div>
     </nav>
 
-    <!-- Header Section -->
-    <header class="app-header">
-      <div class="badge-pill">
-        <span class="badge-sparkle">✨</span>
-        <span>Universal Multi-Platform Downloader</span>
+    <!-- Header Section: Centered Title, Badges & Subtitle -->
+    <header class="app-hero" id="downloader">
+      <!-- Pill Badges Row -->
+      <div class="hero-pills-row">
+        <span class="retro-pill pill-pink">Since 2026</span>
+        <span class="retro-pill pill-mint">Universal Studio</span>
+        <span class="retro-pill pill-purple">AI Powered</span>
+        <span class="retro-pill pill-blue">Fast Delivery</span>
       </div>
-      <h1 class="hero-title">
-        Download <span class="gradient-text">Any Media</span> Instantly
-      </h1>
-      <p class="hero-subtitle">
-        High-speed download for YouTube, Facebook, Instagram, TikTok, Twitter/X & Pinterest. Full HD 1080p, 4K, 320kbps MP3 & Photo Albums.
-      </p>
 
-      <!-- Supported Platforms Bar -->
-      <div class="platforms-bar">
-        <span class="platform-chip chip-yt">
-          <svg class="platform-icon" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-          YouTube
-        </span>
-        <span class="platform-chip chip-fb">
-          <svg class="platform-icon" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-          Facebook
-        </span>
-        <span class="platform-chip chip-ig">
-          <svg class="platform-icon" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-          Instagram
-        </span>
-        <span class="platform-chip chip-tt">
-          <svg class="platform-icon" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.64 1.82 2.89 3.5 2.72 1.43-.07 2.7-1.02 3.13-2.38.16-.5.21-1.03.2-1.56.03-3.72.01-7.44.02-11.16z"/></svg>
-          TikTok
-        </span>
-        <span class="platform-chip chip-x">
-          <svg class="platform-icon" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-          Twitter / X
-        </span>
-        <span class="platform-chip chip-pin">
-          <svg class="platform-icon" viewBox="0 0 24 24"><path d="M12 0a12 12 0 0 0-4.37 23.17c-.05-.98-.09-2.5.05-3.57.13-.98.84-6.14.84-6.14s-.21-.43-.21-1.07c0-1 .58-1.75 1.3-1.75.61 0 .91.46.91 1.01 0 .62-.39 1.54-.6 2.39-.17.72.36 1.31 1.07 1.31 1.28 0 2.27-1.35 2.27-3.3 0-1.73-1.24-2.93-3.01-2.93-2.05 0-3.25 1.54-3.25 3.13 0 .62.24 1.28.54 1.64.06.07.07.13.05.2-.06.24-.19.76-.21.86-.03.14-.11.17-.25.1-1-.46-1.62-1.92-1.62-3.09 0-2.52 1.83-4.83 5.28-4.83 2.77 0 4.93 1.98 4.93 4.62 0 2.76-1.74 4.98-4.16 4.98-.81 0-1.58-.42-1.84-.92l-.5 1.9c-.18.7-.67 1.57-1 2.1A12 12 0 1 0 12 0z"/></svg>
-          Pinterest
-        </span>
-      </div>
+      <h1 class="hero-title">
+        Universal <br>
+        <span class="hero-highlight-word">Digital Media</span> <br>
+        Downloader For Future
+      </h1>
+
+      <p class="hero-subtitle">
+        We transform links into uncompressed high-speed downloads. From YouTube and Facebook to Instagram carousels and TikTok — download 4K videos, 320kbps MP3 & photo albums.
+      </p>
     </header>
 
-    <!-- Search / Input Card with Glow Aura -->
-    <section class="search-card-outer">
+    <!-- Centered Search / Link Paste Card Directly Under Title -->
+    <section class="search-card-outer" id="downloader-box">
       <div class="search-card">
+        <div class="card-badge-header">
+          <span class="card-corner-label">⚡ DIRECT CDN ENGINE</span>
+          <span class="card-corner-status">● Live & Ready</span>
+        </div>
+
         <div class="input-wrapper">
           <div class="input-main-row">
             <div class="input-icon-prefix">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
               </svg>
@@ -97,7 +95,7 @@
               type="text" 
               id="urlInput" 
               class="url-input" 
-              placeholder="Paste video or post link here..."
+              placeholder="Paste YouTube, Instagram, Facebook, TikTok link here..."
               autocomplete="off"
               spellcheck="false"
             >
@@ -106,7 +104,7 @@
                 ✕
               </button>
               <button id="pasteBtn" class="btn-paste" title="Paste from clipboard">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
                   <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
                 </svg>
@@ -115,16 +113,45 @@
             </div>
           </div>
           <button id="searchBtn" class="btn-search">
-            <svg class="search-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-            </svg>
             <span>Fetch Links</span>
+            <svg class="search-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
           </button>
+        </div>
+
+        <!-- Supported Platforms Bar under Input -->
+        <div class="platforms-bar">
+          <span class="platform-chip chip-yt">
+            <svg class="platform-icon" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            YouTube
+          </span>
+          <span class="platform-chip chip-fb">
+            <svg class="platform-icon" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+            Facebook
+          </span>
+          <span class="platform-chip chip-ig">
+            <svg class="platform-icon" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+            Instagram
+          </span>
+          <span class="platform-chip chip-tt">
+            <svg class="platform-icon" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.64 1.82 2.89 3.5 2.72 1.43-.07 2.7-1.02 3.13-2.38.16-.5.21-1.03.2-1.56.03-3.72.01-7.44.02-11.16z"/></svg>
+            TikTok
+          </span>
+          <span class="platform-chip chip-x">
+            <svg class="platform-icon" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            Twitter / X
+          </span>
+          <span class="platform-chip chip-pin">
+            <svg class="platform-icon" viewBox="0 0 24 24"><path d="M12 0a12 12 0 0 0-4.37 23.17c-.05-.98-.09-2.5.05-3.57.13-.98.84-6.14.84-6.14s-.21-.43-.21-1.07c0-1 .58-1.75 1.3-1.75.61 0 .91.46.91 1.01 0 .62-.39 1.54-.6 2.39-.17.72.36 1.31 1.07 1.31 1.28 0 2.27-1.35 2.27-3.3 0-1.73-1.24-2.93-3.01-2.93-2.05 0-3.25 1.54-3.25 3.13 0 .62.24 1.28.54 1.64.06.07.07.13.05.2-.06.24-.19.76-.21.86-.03.14-.11.17-.25.1-1-.46-1.62-1.92-1.62-3.09 0-2.52 1.83-4.83 5.28-4.83 2.77 0 4.93 1.98 4.93 4.62 0 2.76-1.74 4.98-4.16 4.98-.81 0-1.58-.42-1.84-.92l-.5 1.9c-.18.7-.67 1.57-1 2.1A12 12 0 1 0 12 0z"/></svg>
+            Pinterest
+          </span>
         </div>
       </div>
     </section>
 
-    <!-- Shimmer Skeleton Card (User Rule #12) -->
+    <!-- Shimmer Skeleton Card (User Rule #12: Shimmer Everywhere) -->
     <div id="shimmerCard" class="shimmer-card">
       <div class="shimmer-header">
         <div class="shimmer-box shimmer-thumb"></div>
@@ -143,19 +170,18 @@
       </div>
     </div>
 
-    <!-- Media Result Card -->
+    <!-- Media Result Card (Neo-Brutalist White Card) -->
     <section id="resultCard" class="result-card">
       <div class="media-preview-header">
         <div class="media-thumb-wrap">
           <img id="mediaThumb" src="" alt="Thumbnail" class="media-thumb">
-          <div class="media-thumb-overlay"></div>
           <span id="mediaDuration" class="media-duration-badge"></span>
-          <span class="media-hd-pill">HD</span>
+          <span class="media-hd-pill">4K / HD</span>
         </div>
         <div class="media-info">
           <div class="media-meta-row">
             <span id="mediaPlatform" class="media-platform-tag">YouTube</span>
-            <span class="verified-tag">✓ Ready to Download</span>
+            <span class="verified-tag">✓ Ready to Stream</span>
           </div>
           <h2 id="mediaTitle" class="media-title">Media Title</h2>
         </div>
@@ -164,14 +190,14 @@
       <div class="format-heading">
         <div class="format-heading-left">
           <span class="format-heading-icon">⚡</span>
-          <span>Available Formats & Qualities:</span>
+          <span>Select Quality & Download:</span>
         </div>
         <span class="format-heading-note">Direct CDN Stream</span>
       </div>
 
       <!-- Format Selection Grid -->
       <div id="formatGrid" class="format-grid">
-        <!-- Dynamically injected buttons -->
+        <!-- Dynamically injected buttons by JS -->
       </div>
 
       <!-- Album Photo Gallery (for Multi-Photo Instagram/Facebook Posts) -->
@@ -179,7 +205,7 @@
         <div class="album-heading">
           <div class="album-heading-left">
             <span class="album-heading-icon">📸</span>
-            <span>All Photos in this Post:</span>
+            <span>All Carousel Photos:</span>
           </div>
           <span id="albumCountBadge" class="album-count-badge">0 Photos</span>
         </div>
@@ -199,73 +225,408 @@
           <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
         </div>
         <div id="progressStats" class="progress-stats">
-          <span class="engine-badge">⚡ Turbo CDN Engine</span>
+          <span class="engine-badge">⚡ Turbo CDN Stream</span>
           <span id="speedEtaLabel" class="speed-eta-label"></span>
         </div>
       </div>
     </section>
 
-    <!-- Quick 3-Step Guide Section -->
-    <section class="how-it-works-section">
-      <div class="steps-grid">
-        <div class="step-card">
-          <div class="step-num">01</div>
-          <div class="step-icon">📋</div>
-          <h4 class="step-title">Paste Video Link</h4>
-          <p class="step-desc">Copy your favorite video or photo post link from YouTube, Facebook, Instagram, or TikTok.</p>
+    <!-- Bento Services Section ("What We Create" Style from Page 1 PDF) -->
+    <section class="section-container" id="services">
+      <div class="section-tag-wrap">
+        <span class="section-sub-tag">Our Services</span>
+      </div>
+      <h2 class="section-main-title">What We Create</h2>
+      <p class="section-sub-desc">From concept to download, we provide end-to-end media extraction solutions</p>
+
+      <div class="bento-grid">
+        <!-- Card 1: UI/UX & Video Design (Pastel Pink) -->
+        <div class="bento-card card-pink">
+          <div class="bento-card-header">
+            <div class="bento-icon-box">🎬</div>
+            <h3 class="bento-title">4K & 1080p Video</h3>
+          </div>
+          <p class="bento-tagline">Beautiful, crystal-clear resolutions that delight users and drive engagement:</p>
+          <ul class="bento-list">
+            <li><span class="bullet-dot"></span> True 1080p FHD & 4K UHD</li>
+            <li><span class="bullet-dot"></span> Watermark-Free TikTok Extraction</li>
+            <li><span class="bullet-dot"></span> High Bitrate 60FPS Preservation</li>
+            <li><span class="bullet-dot"></span> YouTube Shorts & Reels Support</li>
+          </ul>
+          <div class="bento-footer-pills">
+            <span class="tech-mini-pill">1080p</span>
+            <span class="tech-mini-pill">4K UHD</span>
+            <span class="tech-mini-pill">MP4</span>
+            <img src="/static/img/logo.png?v={{ v }}" alt="Logo" class="bento-corner-logo-img">
+          </div>
         </div>
-        <div class="step-card">
-          <div class="step-num">02</div>
-          <div class="step-icon">🎯</div>
-          <h4 class="step-title">Choose Quality</h4>
-          <p class="step-desc">Select 1080p FHD, 720p HD, high-bitrate 320kbps MP3 audio, or multi-photo ZIP archive.</p>
+
+        <!-- Card 2: Audio & MP3 Engine (Pastel Blue) -->
+        <div class="bento-card card-blue">
+          <div class="bento-card-header">
+            <div class="bento-icon-box">🎵</div>
+            <h3 class="bento-title">320kbps MP3 Audio</h3>
+          </div>
+          <p class="bento-tagline">High-fidelity audio extraction engineered for crisp studio playback:</p>
+          <ul class="bento-list">
+            <li><span class="bullet-dot"></span> 320kbps Studio Audio Bitrate</li>
+            <li><span class="bullet-dot"></span> ID3 Metadata & Album Art Embed</li>
+            <li><span class="bullet-dot"></span> Lightning Fast AAC/MP3 Conversion</li>
+            <li><span class="bullet-dot"></span> Seamless Background Conversion</li>
+          </ul>
+          <div class="bento-footer-pills">
+            <span class="tech-mini-pill">MP3</span>
+            <span class="tech-mini-pill">M4A</span>
+            <span class="tech-mini-pill">320kbps</span>
+            <img src="/static/img/logo.png?v={{ v }}" alt="Logo" class="bento-corner-logo-img">
+          </div>
         </div>
-        <div class="step-card">
-          <div class="step-num">03</div>
-          <div class="step-icon">⚡</div>
-          <h4 class="step-title">Instant Download</h4>
-          <p class="step-desc">Download directly from high-speed cloud CDN with zero file size restrictions or ads.</p>
+
+        <!-- Card 3: Instagram & Carousels (Pastel Mint) -->
+        <div class="bento-card card-mint">
+          <div class="bento-card-header">
+            <div class="bento-icon-box">📸</div>
+            <h3 class="bento-title">Carousels & Albums</h3>
+          </div>
+          <p class="bento-tagline">Multi-image extraction powered by GraphQL & high-resolution scraping:</p>
+          <ul class="bento-list">
+            <li><span class="bullet-dot"></span> Instagram Multi-Photo Carousels</li>
+            <li><span class="bullet-dot"></span> Full-Res Original JPG Assets</li>
+            <li><span class="bullet-dot"></span> 1-Click ZIP Archive Bundle</li>
+            <li><span class="bullet-dot"></span> Facebook & Pinterest High-Res Pins</li>
+          </ul>
+          <div class="bento-footer-pills">
+            <span class="tech-mini-pill">GraphQL</span>
+            <span class="tech-mini-pill">JPG</span>
+            <span class="tech-mini-pill">ZIP</span>
+            <img src="/static/img/logo.png?v={{ v }}" alt="Logo" class="bento-corner-logo-img">
+          </div>
+        </div>
+
+        <!-- Card 4: Lightning CDN (Pastel Yellow) -->
+        <div class="bento-card card-yellow">
+          <div class="bento-card-header">
+            <div class="bento-icon-box">⚡</div>
+            <h3 class="bento-title">Turbo CDN Streaming</h3>
+          </div>
+          <p class="bento-tagline">Direct proxy stream architecture that maximizes download speeds:</p>
+          <ul class="bento-list">
+            <li><span class="bullet-dot"></span> Direct Chunked Byte Streaming</li>
+            <li><span class="bullet-dot"></span> Zero Wait Times & No Queue</li>
+            <li><span class="bullet-dot"></span> Resume & Range Header Support</li>
+            <li><span class="bullet-dot"></span> Low Latency Global VPS Backbone</li>
+          </ul>
+          <div class="bento-footer-pills">
+            <span class="tech-mini-pill">HTTPX</span>
+            <span class="tech-mini-pill">Async</span>
+            <span class="tech-mini-pill">FastAPI</span>
+            <img src="/static/img/logo.png?v={{ v }}" alt="Logo" class="bento-corner-logo-img">
+          </div>
+        </div>
+
+        <!-- Card 5: Zero Limits & Privacy (Pastel Purple) -->
+        <div class="bento-card card-purple">
+          <div class="bento-card-header">
+            <div class="bento-icon-box">🔒</div>
+            <h3 class="bento-title">Zero Limits & Privacy</h3>
+          </div>
+          <p class="bento-tagline">Clean, ad-free experience engineered with strict privacy standards:</p>
+          <ul class="bento-list">
+            <li><span class="bullet-dot"></span> Unlimited File Sizes (1GB - 5GB+)</li>
+            <li><span class="bullet-dot"></span> No Registration / No Login</li>
+            <li><span class="bullet-dot"></span> Auto File Cleanup on Disk</li>
+            <li><span class="bullet-dot"></span> Zero Ads & No Tracking Cookies</li>
+          </ul>
+          <div class="bento-footer-pills">
+            <span class="tech-mini-pill">Encrypted</span>
+            <span class="tech-mini-pill">No Ads</span>
+            <span class="tech-mini-pill">AutoClean</span>
+            <img src="/static/img/logo.png?v={{ v }}" alt="Logo" class="bento-corner-logo-img">
+          </div>
+        </div>
+
+        <!-- Card 6: Universal Platform Integration (Pastel Teal) -->
+        <div class="bento-card card-teal">
+          <div class="bento-card-header">
+            <div class="bento-icon-box">🌐</div>
+            <h3 class="bento-title">Multi-Platform Engine</h3>
+          </div>
+          <p class="bento-tagline">Robust cross-platform parsers that handle all major video ecosystems:</p>
+          <ul class="bento-list">
+            <li><span class="bullet-dot"></span> YouTube, FB, IG, TikTok, X, Pinterest</li>
+            <li><span class="bullet-dot"></span> Telegram Bot & Web App Sync</li>
+            <li><span class="bullet-dot"></span> Mobile Responsive Glass Interface</li>
+            <li><span class="bullet-dot"></span> Restful JSON & Direct API Access</li>
+          </ul>
+          <div class="bento-footer-pills">
+            <span class="tech-mini-pill">YouTube</span>
+            <span class="tech-mini-pill">Instagram</span>
+            <span class="tech-mini-pill">TikTok</span>
+            <img src="/static/img/logo.png?v={{ v }}" alt="Logo" class="bento-corner-logo-img">
+          </div>
         </div>
       </div>
     </section>
 
-    <!-- Features Section -->
-    <section class="features-section">
-      <h3 class="section-title">Why Choose Our Downloader?</h3>
-      <div class="features-grid">
-        <div class="feature-box">
-          <div class="feature-icon-wrap">🚀</div>
-          <h4 class="feature-title">Zero File Size Limits</h4>
-          <p class="feature-desc">Download 500MB, 1GB, or 2GB+ large videos directly in your browser at maximum speed without restrictions.</p>
+    <!-- How We Work Section (from Page 2 PDF) -->
+    <section class="section-container" id="how-it-works">
+      <div class="section-tag-wrap">
+        <span class="section-sub-tag">Our Work</span>
+      </div>
+      <h2 class="section-main-title">How We Work</h2>
+      <p class="section-sub-desc">A proven methodology that delivers instant media every single time</p>
+
+      <div class="workflow-flow-grid">
+        <div class="workflow-card">
+          <div class="workflow-step-badge">
+            <span class="workflow-step-num">01</span>
+            <span class="workflow-icon">🔍</span>
+          </div>
+          <h4 class="workflow-title">Paste & Inspect</h4>
+          <p class="workflow-desc">Paste your media URL. Our engine analyzes media metadata and formats instantly.</p>
+          <span class="workflow-bottom-tag">URL Parser</span>
         </div>
-        <div class="feature-box">
-          <div class="feature-icon-wrap">🎬</div>
-          <h4 class="feature-title">True 1080p & 4K Quality</h4>
-          <p class="feature-desc">Uncompressed crystal clear video resolution and high bitrate 320kbps MP3 audio extraction.</p>
+
+        <div class="workflow-connector">
+          <span>➔</span>
         </div>
-        <div class="feature-box">
-          <div class="feature-icon-wrap">📸</div>
-          <h4 class="feature-title">Instagram Carousels & Reels</h4>
-          <p class="feature-desc">Download multi-image albums, reels, and stories in full original resolution with a single click.</p>
+
+        <div class="workflow-card highlighted">
+          <div class="workflow-step-badge">
+            <span class="workflow-step-num">02</span>
+            <span class="workflow-icon">🎨</span>
+          </div>
+          <h4 class="workflow-title">Choose Quality</h4>
+          <p class="workflow-desc">Select 1080p FHD, 720p HD, studio 320kbps MP3 audio, or multi-photo album ZIP.</p>
+          <span class="workflow-bottom-tag">Direct Resolution</span>
         </div>
-        <div class="feature-box">
-          <div class="feature-icon-wrap">🔒</div>
-          <h4 class="feature-title">100% Free & Secure</h4>
-          <p class="feature-desc">No ads, no registration required — instant high-speed direct cloud streaming.</p>
+
+        <div class="workflow-connector">
+          <span>➔</span>
+        </div>
+
+        <div class="workflow-card">
+          <div class="workflow-step-badge">
+            <span class="workflow-step-num">03</span>
+            <span class="workflow-icon">⚡</span>
+          </div>
+          <h4 class="workflow-title">High Speed Stream</h4>
+          <p class="workflow-desc">Piped directly from global CDNs to your disk with zero throttling or queues.</p>
+          <span class="workflow-bottom-tag">Direct Stream</span>
         </div>
       </div>
     </section>
 
-    <!-- Footer -->
+    <!-- Technologies We Master Section (from Page 2 PDF) -->
+    <section class="section-container" id="tech-stack">
+      <div class="section-tag-wrap">
+        <span class="section-sub-tag">Formats & Stack</span>
+      </div>
+      <h2 class="section-main-title">Technologies We Master</h2>
+      <p class="section-sub-desc">Cutting-edge media formats and frameworks to deliver the future</p>
+
+      <div class="tech-pills-cloud">
+        <span class="cloud-pill pill-pink">🎬 4K UHD <small>Video</small></span>
+        <span class="cloud-pill pill-blue">🎥 1080p FHD <small>Video</small></span>
+        <span class="cloud-pill pill-mint">⚡ 720p HD <small>Fast</small></span>
+        <span class="cloud-pill pill-purple">🎵 320kbps MP3 <small>Audio</small></span>
+        <span class="cloud-pill pill-teal">🎧 M4A AAC <small>Audio</small></span>
+        <span class="cloud-pill pill-orange">🖼️ High-Res JPG <small>Photo</small></span>
+        <span class="cloud-pill pill-yellow">📦 ZIP Bundle <small>Archive</small></span>
+        <span class="cloud-pill pill-coral">⚡ FastAPI <small>Engine</small></span>
+        <span class="cloud-pill pill-indigo">🛠 yt-dlp <small>Parser</small></span>
+        <span class="cloud-pill pill-fuchsia">🔮 GraphQL <small>API</small></span>
+        <span class="cloud-pill pill-cyan">🐍 Python 3.14 <small>Backend</small></span>
+        <span class="cloud-pill pill-lime">🐳 Docker <small>DevOps</small></span>
+      </div>
+
+      <!-- 4 Stats Cards (from Page 2 PDF) -->
+      <div class="stats-row-grid">
+        <div class="stat-card stat-pink">
+          <span class="stat-number">15+</span>
+          <span class="stat-label">Formats Supported</span>
+        </div>
+        <div class="stat-card stat-blue">
+          <span class="stat-number">100%</span>
+          <span class="stat-label">Modern Stack</span>
+        </div>
+        <div class="stat-card stat-mint">
+          <span class="stat-number">24/7</span>
+          <span class="stat-label">High-Speed CDN</span>
+        </div>
+        <div class="stat-card stat-purple">
+          <span class="stat-number">0s</span>
+          <span class="stat-label">Zero Queue Delay</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ready to Download CTA Card (from Page 2 PDF) -->
+    <section class="section-container cta-section">
+      <div class="cta-banner-card">
+        <div class="cta-floating-elem cta-geo-1"></div>
+        <div class="cta-floating-elem cta-geo-2"></div>
+        <div class="cta-floating-elem cta-geo-3"></div>
+
+        <div class="cta-badge">
+          <span>✓ Ready to Start?</span>
+        </div>
+
+        <h3 class="cta-heading">
+          Let's Download Your <br>
+          <span class="cta-italic-word">Next Favorite</span> Media!
+        </h3>
+
+        <div class="cta-buttons-row">
+          <a href="#downloader-box" class="btn-cta-primary">
+            <span>Start Download</span>
+            <span class="cta-arrow">➔</span>
+          </a>
+          <a href="https://t.me/my1_assistant_demo_bot" target="_blank" rel="noopener noreferrer" class="btn-cta-secondary">
+            <span>✈️ Telegram Bot</span>
+          </a>
+        </div>
+
+        <div class="cta-perks-row">
+          <div class="cta-perk">
+            <span class="perk-check">✓</span>
+            <span>Free For Everyone</span>
+          </div>
+          <div class="cta-perk">
+            <span class="perk-bolt">⚡</span>
+            <span>Instant Response</span>
+          </div>
+          <div class="cta-perk">
+            <span class="perk-star">★</span>
+            <span>Premium 4K Quality</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Kindly Explore Platforms / Social Bar (from Page 3 PDF) -->
+    <section class="section-container explore-platforms-section" id="platforms">
+      <h3 class="explore-title">Kindly explore supported platforms on</h3>
+      
+      <div class="explore-circles-row">
+        <a href="#downloader-box" class="explore-circle-item">
+          <div class="circle-icon circle-yt">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          </div>
+          <span class="circle-name">YouTube</span>
+        </a>
+
+        <a href="#downloader-box" class="explore-circle-item">
+          <div class="circle-icon circle-fb">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          </div>
+          <span class="circle-name">Facebook</span>
+        </a>
+
+        <a href="#downloader-box" class="explore-circle-item">
+          <div class="circle-icon circle-ig">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+          </div>
+          <span class="circle-name">Instagram</span>
+        </a>
+
+        <a href="#downloader-box" class="explore-circle-item">
+          <div class="circle-icon circle-tt">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.64 1.82 2.89 3.5 2.72 1.43-.07 2.7-1.02 3.13-2.38.16-.5.21-1.03.2-1.56.03-3.72.01-7.44.02-11.16z"/></svg>
+          </div>
+          <span class="circle-name">TikTok</span>
+        </a>
+
+        <a href="https://t.me/my1_assistant_demo_bot" target="_blank" rel="noopener noreferrer" class="explore-circle-item">
+          <div class="circle-icon circle-tg">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18.895-.964 4.542-1.362 6.442-.168.804-.5 1.073-.82 1.1-.698.064-1.229-.46-1.905-.903-1.058-.693-1.656-1.124-2.684-1.8-1.188-.782-.418-1.212.259-1.916.177-.184 3.253-2.981 3.313-3.237.008-.032.014-.153-.058-.217-.072-.064-.177-.042-.253-.025-.108.024-1.83 1.164-5.166 3.416-.488.336-.931.5-1.328.491-.437-.01-1.278-.247-1.904-.451-.767-.25-1.378-.383-1.325-.808.028-.221.332-.448.913-.68 3.58-1.56 5.968-2.589 7.164-3.088 3.411-1.42 4.12-1.667 4.583-1.674.102-.002.329.023.477.143.125.101.16.238.176.335.017.106.037.319.02.493z"/></svg>
+          </div>
+          <span class="circle-name">Telegram Bot</span>
+        </a>
+
+        <a href="#downloader-box" class="explore-circle-item">
+          <div class="circle-icon circle-x">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </div>
+          <span class="circle-name">Twitter / X</span>
+        </a>
+
+        <a href="#downloader-box" class="explore-circle-item">
+          <div class="circle-icon circle-pin">
+            <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 0a12 12 0 0 0-4.37 23.17c-.05-.98-.09-2.5.05-3.57.13-.98.84-6.14.84-6.14s-.21-.43-.21-1.07c0-1 .58-1.75 1.3-1.75.61 0 .91.46.91 1.01 0 .62-.39 1.54-.6 2.39-.17.72.36 1.31 1.07 1.31 1.28 0 2.27-1.35 2.27-3.3 0-1.73-1.24-2.93-3.01-2.93-2.05 0-3.25 1.54-3.25 3.13 0 .62.24 1.28.54 1.64.06.07.07.13.05.2-.06.24-.19.76-.21.86-.03.14-.11.17-.25.1-1-.46-1.62-1.92-1.62-3.09 0-2.52 1.83-4.83 5.28-4.83 2.77 0 4.93 1.98 4.93 4.62 0 2.76-1.74 4.98-4.16 4.98-.81 0-1.58-.42-1.84-.92l-.5 1.9c-.18.7-.67 1.57-1 2.1A12 12 0 1 0 12 0z"/></svg>
+          </div>
+          <span class="circle-name">Pinterest</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- Retro Brutalist Footer (from Page 3 PDF) -->
     <footer class="app-footer">
-      <div class="footer-content">
-        <p class="footer-text">
-          ⚡ <strong>Universal Media Downloader</strong> &bull; Crafted with precision by <span class="footer-highlight">Emon</span>
+      <div class="footer-top-row">
+        <div class="footer-brand-col">
+          <div class="brand-badge footer-brand">
+            <div class="brand-icon-box">
+              <img src="/static/img/logo.png?v={{ v }}" alt="Universal Downloader" class="brand-logo-img">
+            </div>
+            <span class="brand-name">UNIVERSAL<span class="brand-name-highlight">DOWNLOADER</span></span>
+          </div>
+          <p class="footer-desc">
+            Universal Downloader is a high-speed media engine built to download 4K videos, 320kbps MP3 audio, and photo albums with zero limits.
+          </p>
+        </div>
+
+        <div class="footer-links-col">
+          <h5 class="footer-heading">Services</h5>
+          <ul class="footer-nav">
+            <li><a href="#services">4K Video Download</a></li>
+            <li><a href="#services">320kbps MP3 Audio</a></li>
+            <li><a href="#services">Instagram Carousels</a></li>
+            <li><a href="#services">TikTok No Watermark</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-links-col">
+          <h5 class="footer-heading">Bots & Ecosystem</h5>
+          <ul class="footer-nav">
+            <li><a href="https://t.me/my1_assistant_demo_bot" target="_blank" rel="noopener noreferrer">✈️ Telegram Bot (@my1_assistant_demo_bot)</a></li>
+            <li><a href="https://emonahammed.shop/" target="_blank" rel="noopener noreferrer">🌐 Developer Portfolio</a></li>
+            <li><a href="#downloader-box">⚡ Web Fast Engine</a></li>
+            <li><a href="#tech-stack">🛠 Supported Formats</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-contact-col">
+          <h5 class="footer-heading">Creator & Portfolio</h5>
+          <p class="footer-contact-text">👨‍💻 <strong>Emon Ahammed</strong></p>
+          <p class="footer-contact-text">
+            <a href="https://emonahammed.shop/" target="_blank" rel="noopener noreferrer" class="portfolio-badge-link">
+              <span>🚀 emonahammed.shop ↗</span>
+            </a>
+          </p>
+          <p class="footer-contact-text">
+            <a href="https://t.me/my1_assistant_demo_bot" target="_blank" rel="noopener noreferrer" class="telegram-badge-link">
+              <span>✈️ @my1_assistant_demo_bot ↗</span>
+            </a>
+          </p>
+        </div>
+      </div>
+
+      <div class="footer-bottom-row">
+        <p class="footer-copyright">
+          © 2026 <strong>Universal Downloader</strong> • Crafted with precision by <a href="https://emonahammed.shop/" target="_blank" rel="noopener noreferrer" class="footer-author-link"><strong>Emon Ahammed</strong></a>. All rights reserved.
         </p>
-        <p class="footer-subtext">Free high-speed media downloader for personal use.</p>
+        <a href="#downloader-box" class="btn-back-to-top" title="Back to top">↑</a>
       </div>
     </footer>
 
+  </div>
+
+  <!-- Floating Quick Paste Pill on Mobile (User-friendly one-tap paste) -->
+  <div id="mobileQuickBar" class="mobile-quick-bar">
+    <button id="mobileFloatPasteBtn" class="btn-mobile-float-paste" title="Paste link and download">
+      <span class="float-btn-icon">⚡</span>
+      <span>Paste & Fetch</span>
+    </button>
   </div>
 
   <!-- Toast Notification -->

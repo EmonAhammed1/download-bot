@@ -53,6 +53,21 @@ def clean_url(url: str) -> str:
     url = re.sub(r'\?&', '?', url)
     return url
 
+def clean_media_title(title: str) -> str:
+    """Sanitize title: remove hashtags, view/reaction statistics, and extra separators."""
+    if not title:
+        return "Media"
+    t = str(title)
+    # 1. Remove hashtags (#reels, #viral, #bangla, #tiktok, etc.)
+    t = re.sub(r'#[\w\d_\u0980-\u09FF\u00C0-\u017F]+', '', t)
+    # 2. Remove view / reaction count prefix if present (e.g. 8.9M views • 234K reactions |)
+    t = re.sub(r'^\s*\d+(?:\.\d+)?[MKmk]?\s*views?\s*[•|·\s]*\d*(?:\.\d+)?[MKmk]?\s*(?:reactions?|likes?)?\s*[|•·-]\s*', '', t, flags=re.IGNORECASE)
+    # 3. Clean up redundant separators
+    t = re.sub(r'\s*[|•·-]\s*[|•·-]+\s*', ' | ', t)
+    # 4. Collapse spaces and trim
+    t = re.sub(r'\s+', ' ', t).strip(' \t\n\r|•·-')
+    return t or "Media"
+
 def check_profile_link(url: str) -> Optional[Tuple[str, str]]:
     """Check if the URL is a user profile link rather than a post/video link.
     Returns (platform_name, username) if it is a profile link, else None.
@@ -186,7 +201,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                 return {
                     'status': 'success',
                     'platform': 'Instagram',
-                    'title': title[:120],
+                    'title': clean_media_title(title)[:120],
                     'thumbnail': photos[0],
                     'is_album': True,
                     'photo_count': len(photos),
@@ -201,7 +216,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
             return {
                 'status': 'success',
                 'platform': 'Instagram',
-                'title': title[:120],
+                'title': clean_media_title(title)[:120],
                 'thumbnail': thumb,
                 'duration': int(duration),
                 'is_album': False,
@@ -215,7 +230,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
             return {
                 'status': 'success',
                 'platform': 'Instagram',
-                'title': title[:120],
+                'title': clean_media_title(title)[:120],
                 'thumbnail': thumb,
                 'is_album': False,
                 'formats': [
@@ -245,7 +260,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                 return {
                     'status': 'success',
                     'platform': 'Instagram',
-                    'title': title[:120],
+                    'title': clean_media_title(title)[:120],
                     'thumbnail': thumb_url,
                     'duration': 0,
                     'is_album': False,
@@ -401,7 +416,7 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
             return {
                 'status': 'success',
                 'platform': platform.replace(' 🔴', '').replace(' 📸', '').replace(' 🔵', '').replace(' 🎵', '').replace(' 🐦', '').replace(' 📌', '').replace(' 🌐', ''),
-                'title': title,
+                'title': clean_media_title(title),
                 'thumbnail': thumb,
                 'duration': int(duration) if duration else 0,
                 'formats': formats

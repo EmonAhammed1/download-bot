@@ -15,11 +15,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const clearBtn = document.getElementById('clearBtn');
   let currentMediaUrl = '';
 
-  // Toast notification
+  // Toast notification (Retro Brutalist styling)
   function showToast(message, isError = true) {
     toast.textContent = message;
-    toast.style.borderColor = isError ? 'rgba(239, 68, 68, 0.5)' : 'rgba(16, 185, 129, 0.5)';
-    toast.style.color = isError ? '#fca5a5' : '#6ee7b7';
+    toast.style.background = isError ? '#FFE4E6' : '#D1FAE5';
+    toast.style.borderColor = '#111827';
+    toast.style.color = '#111827';
     toast.style.display = 'block';
     setTimeout(() => {
       toast.style.display = 'none';
@@ -31,17 +32,67 @@ document.addEventListener('DOMContentLoaded', () => {
     clearBtn.addEventListener('click', () => {
       urlInput.value = '';
       clearBtn.style.display = 'none';
+      currentMediaUrl = '';
+      resultCard.style.display = 'none';
+      downloadStatus.style.display = 'none';
+      if (typeof updateMobileQuickBar === 'function') updateMobileQuickBar();
       urlInput.focus();
     });
   }
 
-  urlInput.addEventListener('input', () => {
-    if (clearBtn) {
-      clearBtn.style.display = urlInput.value.trim() ? 'flex' : 'none';
+  // Automatic Instant Fetch on Paste (Ctrl+V, Right-Click Paste, Mobile Long-press Paste)
+  urlInput.addEventListener('paste', (e) => {
+    let pastedText = '';
+    if (e.clipboardData && e.clipboardData.getData) {
+      pastedText = e.clipboardData.getData('text');
+    } else if (window.clipboardData && window.clipboardData.getData) {
+      pastedText = window.clipboardData.getData('Text');
+    }
+
+    if (pastedText && pastedText.trim()) {
+      const cleanUrl = pastedText.trim();
+      if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+        if (clearBtn) clearBtn.style.display = 'flex';
+        // Immediate auto-fetch
+        setTimeout(() => {
+          const finalVal = urlInput.value.trim() || cleanUrl;
+          if (finalVal) fetchMediaInfo(finalVal);
+        }, 30);
+      }
     }
   });
 
-  // Paste from clipboard
+  // Auto-fetch on Drag & Drop
+  urlInput.addEventListener('drop', () => {
+    setTimeout(() => {
+      const val = urlInput.value.trim();
+      if (val && (val.startsWith('http://') || val.startsWith('https://'))) {
+        if (clearBtn) clearBtn.style.display = 'flex';
+        fetchMediaInfo(val);
+      }
+    }, 50);
+  });
+
+  // Input change auto-detect (with light debounce for auto-complete/typing)
+  let inputDebounceTimer = null;
+  urlInput.addEventListener('input', () => {
+    const val = urlInput.value.trim();
+    if (clearBtn) {
+      clearBtn.style.display = val ? 'flex' : 'none';
+    }
+
+    // If a full URL is detected and hasn't been fetched yet
+    if (val && (val.startsWith('http://') || val.startsWith('https://')) && val.length > 14 && val !== currentMediaUrl && !isFetching) {
+      clearTimeout(inputDebounceTimer);
+      inputDebounceTimer = setTimeout(() => {
+        if (val !== currentMediaUrl && !isFetching) {
+          fetchMediaInfo(val);
+        }
+      }, 350);
+    }
+  });
+
+  // Paste from clipboard button (Instant auto-fetch)
   if (pasteBtn) {
     pasteBtn.addEventListener('click', async () => {
       try {
@@ -81,12 +132,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Fetch Media Information
+  let isFetching = false;
+
+  // Fetch Media Information (Auto-Triggered on Paste)
   async function fetchMediaInfo(url) {
+    if (!url || isFetching) return;
+    isFetching = true;
     currentMediaUrl = url;
     resultCard.style.display = 'none';
     downloadStatus.style.display = 'none';
     shimmerCard.style.display = 'block'; // Show Shimmer everywhere (User Rule #12)
+    if (searchBtn) {
+      searchBtn.style.opacity = '0.7';
+      searchBtn.style.pointerEvents = 'none';
+    }
 
     try {
       const response = await fetch('/api/info', {
@@ -97,6 +156,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const data = await response.json();
       shimmerCard.style.display = 'none';
+      isFetching = false;
+      if (searchBtn) {
+        searchBtn.style.opacity = '1';
+        searchBtn.style.pointerEvents = 'auto';
+      }
 
       if (!response.ok || data.status === 'error') {
         showToast(data.error || data.detail || 'Could not fetch media details.');
@@ -106,6 +170,11 @@ document.addEventListener('DOMContentLoaded', () => {
       renderMediaResult(data);
     } catch (err) {
       shimmerCard.style.display = 'none';
+      isFetching = false;
+      if (searchBtn) {
+        searchBtn.style.opacity = '1';
+        searchBtn.style.pointerEvents = 'auto';
+      }
       showToast('Failed to connect to the server.');
     }
   }
@@ -118,10 +187,26 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
+  // Clean title helper
+  function cleanTitle(raw) {
+    if (!raw) return 'Media Video';
+    let t = String(raw);
+    // Remove hashtags (#reels, #viral, #bangla, #tiktok, etc.)
+    t = t.replace(/#[\w\d_\u0980-\u09FF\u00C0-\u017F]+/g, '');
+    // Remove view / reaction count prefix if present (e.g. 8.9M views • 234K reactions |)
+    t = t.replace(/^\s*\d+(?:\.\d+)?[MKmk]?\s*views?\s*[•|·\s]*\d*(?:\.\d+)?[MKmk]?\s*(?:reactions?|likes?)?\s*[|•·-]\s*/i, '');
+    // Clean up redundant separators
+    t = t.replace(/\s*[|•·-]\s*[|•·-]+\s*/g, ' | ');
+    // Clean whitespace and trim
+    t = t.replace(/\s+/g, ' ').replace(/^[\s|•·-]+|[\s|•·-]+$/g, '');
+    return t || 'Media Video';
+  }
+
   // Render media result and quality selection pills
   function renderMediaResult(data) {
+    resultCard.style.display = 'block';
     document.getElementById('mediaThumb').src = data.thumbnail || '/static/images/placeholder.jpg';
-    document.getElementById('mediaTitle').textContent = data.title || 'Media Video';
+    document.getElementById('mediaTitle').textContent = cleanTitle(data.title);
     document.getElementById('mediaPlatform').textContent = data.platform || 'Social Media';
 
     const durElem = document.getElementById('mediaDuration');
@@ -438,11 +523,113 @@ document.addEventListener('DOMContentLoaded', () => {
       statusLabel.textContent = `✅ MP3 ready! (${resData.filesize_mb || '?'} MB) Starting download...`;
       _triggerDownload(resData.download_url, resData.filename);
 
-      setTimeout(() => { downloadStatus.style.display = 'none'; }, 5000);
-
     } catch (err) {
       downloadStatus.style.display = 'none';
       showToast('Error occurred while downloading.');
     }
   }
+
+  // Floating Quick Paste Bar on Mobile (Only appears on scroll when no results are shown)
+  const mobileQuickBar = document.getElementById('mobileQuickBar');
+  const mobileFloatPasteBtn = document.getElementById('mobileFloatPasteBtn');
+
+  function updateMobileQuickBar() {
+    if (!mobileQuickBar) return;
+    const isResultShowing = resultCard && resultCard.style.display !== 'none';
+    const isDownloadShowing = downloadStatus && downloadStatus.style.display !== 'none';
+    const isShimmerShowing = shimmerCard && shimmerCard.style.display !== 'none';
+
+    // Hide immediately if results, download, or shimmer is on screen
+    if (isResultShowing || isDownloadShowing || isShimmerShowing) {
+      mobileQuickBar.style.opacity = '0';
+      mobileQuickBar.style.pointerEvents = 'none';
+      mobileQuickBar.style.transform = 'translateY(16px)';
+      return;
+    }
+
+    // Only show if user scrolled down on mobile and page has no active media card
+    if (window.innerWidth <= 640 && window.scrollY > 380) {
+      mobileQuickBar.style.opacity = '1';
+      mobileQuickBar.style.pointerEvents = 'auto';
+      mobileQuickBar.style.transform = 'translateY(0)';
+    } else {
+      mobileQuickBar.style.opacity = '0';
+      mobileQuickBar.style.pointerEvents = 'none';
+      mobileQuickBar.style.transform = 'translateY(16px)';
+    }
+  }
+
+  if (mobileFloatPasteBtn) {
+    mobileFloatPasteBtn.addEventListener('click', async () => {
+      // Scroll to downloader box smoothly
+      const box = document.getElementById('downloader-box');
+      if (box) {
+        box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim().startsWith('http')) {
+          urlInput.value = text.trim();
+          if (clearBtn) clearBtn.style.display = 'flex';
+          fetchMediaInfo(text.trim());
+        } else {
+          urlInput.focus();
+        }
+      } catch (err) {
+        urlInput.focus();
+      }
+    });
+
+    window.addEventListener('scroll', updateMobileQuickBar);
+    window.addEventListener('resize', updateMobileQuickBar);
+  }
+
+  // Dynamic ScrollSpy for Header Navigation Links
+  const navItems = document.querySelectorAll('.nav-links .nav-item');
+  const sections = [
+    { id: 'downloader-box', navItem: document.querySelector('.nav-links a[href="#downloader-box"]') },
+    { id: 'services', navItem: document.querySelector('.nav-links a[href="#services"]') },
+    { id: 'how-it-works', navItem: document.querySelector('.nav-links a[href="#how-it-works"]') },
+    { id: 'tech-stack', navItem: document.querySelector('.nav-links a[href="#tech-stack"]') },
+    { id: 'platforms', navItem: document.querySelector('.nav-links a[href="#platforms"]') }
+  ];
+
+  function setActiveNavItem(targetItem) {
+    navItems.forEach(item => item.classList.remove('active'));
+    if (targetItem) targetItem.classList.add('active');
+  }
+
+  // Click on nav item directly updates active state
+  navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      setActiveNavItem(item);
+    });
+  });
+
+  // ScrollSpy listener updates active link on scroll
+  let scrollSpyTimer = null;
+  window.addEventListener('scroll', () => {
+    if (scrollSpyTimer) return;
+    scrollSpyTimer = setTimeout(() => {
+      scrollSpyTimer = null;
+      const scrollPos = window.scrollY + 180;
+
+      let currentActiveItem = sections[0].navItem;
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const secElem = document.getElementById(sections[i].id);
+        if (secElem) {
+          const top = secElem.offsetTop;
+          if (scrollPos >= top) {
+            currentActiveItem = sections[i].navItem;
+            break;
+          }
+        }
+      }
+
+      if (currentActiveItem && !currentActiveItem.classList.contains('active')) {
+        setActiveNavItem(currentActiveItem);
+      }
+    }, 50);
+  });
 });

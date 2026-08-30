@@ -56,7 +56,7 @@ ACTIVE_DOWNLOADS = {}
 STREAM_TOKENS: dict = {}
 
 app = FastAPI(
-    title="Universal Media Downloader Web",
+    title="Universal Downloader",
     description="Download videos, photos & music from YouTube, Facebook, Instagram, TikTok, Twitter, Pinterest in Full HD without limits.",
     version="1.0.0"
 )
