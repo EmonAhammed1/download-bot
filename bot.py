@@ -52,7 +52,7 @@ def debugPrint(msg: str):
 # Temporary in-memory cache for pending URLs per user/message
 PENDING_URLS = {}
 
-WEBSITE_URL = "http://72.244.153.23"
+WEBSITE_URL = "https://download.emonahammed.shop/"
 PORTFOLIO_URL = "https://emonahammed.shop/"
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

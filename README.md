@@ -1,7 +1,7 @@
 # 🚀 Universal Media Downloader — Web App & Telegram Bot
 
 <p align="center">
-  <a href="http://72.244.153.23"><img src="https://img.shields.io/badge/🌐_Live_Website-72.244.153.23-00d2ff?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live Web App"></a>
+  <a href="https://download.emonahammed.shop/"><img src="https://img.shields.io/badge/🌐_Live_Website-download.emonahammed.shop-00d2ff?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live Web App"></a>
   <a href="https://t.me/my1_assistant_demo_bot"><img src="https://img.shields.io/badge/🤖_Telegram_Bot-@my1__assistant__demo__bot-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Bot"></a>
   <a href="https://emonahammed.shop/"><img src="https://img.shields.io/badge/👨‍💻_Developer-Emon_Ahammed-ff007f?style=for-the-badge&logo=safari&logoColor=white" alt="Developer Portfolio"></a>
   <br>
@@ -20,7 +20,7 @@ An ultra-fast, high-performance universal media extraction ecosystem available a
 
 | Platform | Live Access Link | Description |
 | :--- | :--- | :--- |
-| 🌐 **Web Application** | [**http://72.244.153.23**](http://72.244.153.23) | Instant browser download with quality picker & live CDN streaming |
+| 🌐 **Web Application** | [**https://download.emonahammed.shop/**](https://download.emonahammed.shop/) | Instant browser download with quality picker & live CDN streaming |
 | 🤖 **Telegram Bot** | [**@my1_assistant_demo_bot**](https://t.me/my1_assistant_demo_bot) | Direct Telegram downloads with inline keyboards & album splitting |
 | 👨‍💻 **Developer Portfolio** | [**emonahammed.shop**](https://emonahammed.shop/) | Created & maintained by Emon Ahammed |
 
@@ -148,8 +148,8 @@ docker-compose up -d --build
 Both the Web App and Telegram Bot run on an Ubuntu VPS managed via `systemd`:
 
 - **Server IP:** `72.244.153.23`
-- **Web App URL:** `http://72.244.153.23` (Port 8000 / Reverse Proxied)
-- **Telegram Bot:** `@my1_assistant_demo_bot`
+- **Web App URL:** [https://download.emonahammed.shop/](https://download.emonahammed.shop/) (Reverse Proxied to Port 8000)
+- **Telegram Bot:** [@my1_assistant_demo_bot](https://t.me/my1_assistant_demo_bot)
 - **Application Directory:** `/opt/media-downloader-bot`
 
 ### VPS Service Management Commands
