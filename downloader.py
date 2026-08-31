@@ -86,8 +86,89 @@ def check_profile_link(url: str) -> Optional[Tuple[str, str]]:
     # TikTok profile check
     if "tiktok.com" in cleaned:
         path = re.sub(r'^https?://(www\.)?tiktok\.com/', '', cleaned).strip('/')
-        if path.startswith('@') and '/video/' not in path:
+        if path.startswith('@') and '/video/' not in path and '/photo/' not in path:
             return ("TikTok", path.split('?')[0])
+
+    return None
+
+def extract_tiktok_info(url: str) -> Optional[Dict[str, Any]]:
+    """Extract TikTok media info (video, photo slideshows, audio) without watermark using TikWM API & redirect resolver."""
+    target_url = clean_url(url)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+    }
+    
+    # 1. Resolve redirect if short link (vm.tiktok.com, vt.tiktok.com, /t/)
+    final_url = target_url
+    if any(s in target_url.lower() for s in ['vm.tiktok.com', 'vt.tiktok.com', '/t/']):
+        try:
+            s = requests.Session()
+            s.headers.update(headers)
+            r = s.get(target_url, allow_redirects=True, timeout=8)
+            if r.status_code == 200:
+                final_url = r.url.split('?')[0]
+        except Exception as e:
+            logger.warning(f"TikTok short URL redirect resolution: {e}")
+
+    # 2. Try TikWM API
+    for test_u in [target_url, final_url]:
+        try:
+            api_resp = requests.post(
+                'https://www.tikwm.com/api/',
+                data={'url': test_u, 'hd': 1},
+                headers=headers,
+                timeout=12
+            )
+            if api_resp.status_code == 200:
+                data = api_resp.json()
+                if data.get('code') == 0:
+                    d = data.get('data', {})
+                    raw_title = d.get('title') or 'TikTok Media'
+                    title = clean_media_title(raw_title)
+                    thumb = d.get('cover') or d.get('origin_cover')
+                    duration = d.get('duration', 0)
+                    images = d.get('images', [])
+                    play_url = d.get('hdplay') or d.get('play')
+                    music_url = d.get('music')
+                    
+                    if images and len(images) > 0:
+                        return {
+                            'status': 'success',
+                            'platform': 'TikTok',
+                            'title': title[:120],
+                            'thumbnail': images[0],
+                            'is_album': True,
+                            'photo_count': len(images),
+                            'photos': images,
+                            'audio_url': music_url,
+                            'formats': [
+                                {'id': 'album', 'label': f'🖼️ Download All ({len(images)} Photos)', 'type': 'album', 'badge': f'{len(images)}P', 'size': f'~ {round(len(images) * 0.8, 1)} MB'},
+                                {'id': 'img_zip', 'label': '📦 Download as ZIP Album', 'type': 'album', 'badge': 'ZIP', 'size': f'~ {round(len(images) * 0.8, 1)} MB'},
+                                {'id': 'MP3', 'label': '🎵 Background Music (MP3)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 3.0 MB'}
+                            ]
+                        }
+                    
+                    if play_url:
+                        vid_sz = d.get('hd_size') or d.get('size') or 0
+                        sz_str = f'~ {round(vid_sz / (1024 * 1024), 1)} MB' if vid_sz else '~ 8.5 MB'
+                        return {
+                            'status': 'success',
+                            'platform': 'TikTok',
+                            'title': title[:120],
+                            'thumbnail': thumb,
+                            'duration': int(duration),
+                            'is_album': False,
+                            'video_url': play_url,
+                            'audio_url': music_url,
+                            'formats': [
+                                {'id': '1080', 'label': '🎬 Full HD (No Watermark)', 'type': 'video', 'badge': 'FHD', 'size': sz_str},
+                                {'id': '720', 'label': '🎬 720p HD (No Watermark)', 'type': 'video', 'badge': 'HD', 'size': '~ 4.5 MB'},
+                                {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.5 MB'}
+                            ]
+                        }
+        except Exception as err:
+            logger.warning(f"TikWM query error for {test_u}: {err}")
 
     return None
 
@@ -332,6 +413,12 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
         if ig_res:
             return ig_res
 
+    # 2. TikTok extraction
+    if any(x in target_url.lower() for x in ["tiktok.com", "vm.tiktok.com", "vt.tiktok.com"]):
+        tt_res = extract_tiktok_info(target_url)
+        if tt_res:
+            return tt_res
+
     # 2. General yt-dlp metadata extraction
     COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
     temp_cookie = None
@@ -509,6 +596,87 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720", 
                         'ext': 'mp4'
                     }
 
+    # 2. Try TikTok Direct Video/Audio API if applicable
+    if any(x in target_url.lower() for x in ["tiktok.com", "vm.tiktok.com", "vt.tiktok.com"]):
+        tt_info = extract_tiktok_info(target_url)
+        if tt_info:
+            title = tt_info.get('title', 'TikTok Video')
+            thumb = tt_info.get('thumbnail')
+            duration = tt_info.get('duration', 0)
+            
+            if is_audio:
+                audio_url = tt_info.get('audio_url')
+                if audio_url:
+                    unique_name = f"tt_audio_{uuid.uuid4().hex[:8]}.mp3"
+                    file_path = os.path.join(DOWNLOAD_DIR, unique_name)
+                    a_resp = requests.get(audio_url, headers=DEFAULT_HEADERS, timeout=30, stream=True)
+                    if a_resp.status_code == 200:
+                        total_bytes = int(a_resp.headers.get('content-length', 0))
+                        downloaded = 0
+                        with open(file_path, "wb") as f:
+                            for chunk in a_resp.iter_content(chunk_size=65536):
+                                if chunk:
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    if task_id and total_bytes > 0:
+                                        pct = round((downloaded / total_bytes * 100), 1)
+                                        PROGRESS_STORE[task_id] = {
+                                            'status': 'downloading',
+                                            'percent': pct,
+                                            'downloaded_mb': round(downloaded / (1024*1024), 2),
+                                            'total_mb': round(total_bytes / (1024*1024), 2),
+                                            'msg': f"Downloading audio {pct}%..."
+                                        }
+                        if task_id:
+                            PROGRESS_STORE[task_id] = {'status': 'completed', 'percent': 100, 'msg': 'Download Complete!'}
+                        file_sz = os.path.getsize(file_path)
+                        return {
+                            'file_path': file_path,
+                            'title': title[:150],
+                            'duration': duration,
+                            'thumbnail': thumb,
+                            'filesize': file_sz,
+                            'is_audio': True,
+                            'quality': '320kbps',
+                            'ext': 'mp3'
+                        }
+            else:
+                video_url = tt_info.get('video_url')
+                if video_url:
+                    unique_name = f"tt_vid_{uuid.uuid4().hex[:8]}.mp4"
+                    file_path = os.path.join(DOWNLOAD_DIR, unique_name)
+                    v_resp = requests.get(video_url, headers=DEFAULT_HEADERS, timeout=35, stream=True)
+                    if v_resp.status_code == 200:
+                        total_bytes = int(v_resp.headers.get('content-length', 0))
+                        downloaded = 0
+                        with open(file_path, "wb") as f:
+                            for chunk in v_resp.iter_content(chunk_size=65536):
+                                if chunk:
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    if task_id and total_bytes > 0:
+                                        pct = round((downloaded / total_bytes * 100), 1)
+                                        PROGRESS_STORE[task_id] = {
+                                            'status': 'downloading',
+                                            'percent': pct,
+                                            'downloaded_mb': round(downloaded / (1024*1024), 2),
+                                            'total_mb': round(total_bytes / (1024*1024), 2),
+                                            'msg': f"Downloading video {pct}% ({round(downloaded/(1024*1024), 1)} MB)..."
+                                        }
+                        if task_id:
+                            PROGRESS_STORE[task_id] = {'status': 'completed', 'percent': 100, 'msg': 'Download Complete!'}
+                        file_sz = os.path.getsize(file_path)
+                        return {
+                            'file_path': file_path,
+                            'title': title[:150],
+                            'duration': duration,
+                            'thumbnail': thumb,
+                            'filesize': file_sz,
+                            'is_audio': False,
+                            'quality': 'HD',
+                            'ext': 'mp4'
+                        }
+
     COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
     temp_cookie = None
     
@@ -670,7 +838,30 @@ def download_images_sync(url: str) -> Dict[str, Any]:
                     'count': len(downloaded_files)
                 }
 
-    # 2. Facebook extraction using crawler User-Agent
+    # 2. TikTok Photo Album extraction
+    if any(x in target_url.lower() for x in ["tiktok.com", "vm.tiktok.com", "vt.tiktok.com"]):
+        tt_info = extract_tiktok_info(target_url)
+        if tt_info and tt_info.get('is_album') and tt_info.get('photos'):
+            title = tt_info.get('title', title)
+            photos = tt_info['photos']
+            for i, img_url in enumerate(photos):
+                try:
+                    img_resp = requests.get(img_url, headers=DEFAULT_HEADERS, timeout=15)
+                    if img_resp.status_code == 200 and len(img_resp.content) > 1024:
+                        filename = os.path.join(DOWNLOAD_DIR, f"tt_img_{uuid.uuid4().hex[:8]}_{i+1}.jpg")
+                        with open(filename, "wb") as f:
+                            f.write(img_resp.content)
+                        downloaded_files.append(filename)
+                except Exception as e:
+                    logger.error(f"Error downloading TikTok photo {img_url}: {e}")
+            if downloaded_files:
+                return {
+                    'image_paths': downloaded_files,
+                    'title': title[:150],
+                    'count': len(downloaded_files)
+                }
+
+    # 3. Facebook extraction using crawler User-Agent
     if any(x in target_url.lower() for x in ["facebook.com", "fb.watch", "fb.me", "fb.com"]):
         try:
             s = requests.Session()
@@ -893,7 +1084,51 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
                 }
 
     # ------------------------------------------------------------------
-    # 2. Facebook — Crawler check for photo posts & multi-photo albums
+    # 2. TikTok — Direct TikWM API (HD video, MP3 audio, Photo slideshow)
+    # ------------------------------------------------------------------
+    if any(x in url_lower for x in ["tiktok.com", "vm.tiktok.com", "vt.tiktok.com"]):
+        tt_info = extract_tiktok_info(target_url)
+        if tt_info:
+            title = tt_info.get('title', 'TikTok Media')
+            if tt_info.get('is_album') and tt_info.get('photos'):
+                return {
+                    'mode': 'images',
+                    'direct_url': None,
+                    'image_urls': tt_info['photos'],
+                    'title': title[:150],
+                    'ext': 'jpg',
+                    'filesize': None,
+                    'duration': None,
+                    'headers': {},
+                    'error': None,
+                }
+            elif is_audio and tt_info.get('audio_url'):
+                return {
+                    'mode': 'redirect',
+                    'direct_url': tt_info['audio_url'],
+                    'image_urls': None,
+                    'title': title[:150],
+                    'ext': 'mp3',
+                    'filesize': None,
+                    'duration': tt_info.get('duration'),
+                    'headers': {},
+                    'error': None,
+                }
+            elif tt_info.get('video_url'):
+                return {
+                    'mode': 'redirect',
+                    'direct_url': tt_info['video_url'],
+                    'image_urls': None,
+                    'title': title[:150],
+                    'ext': 'mp4',
+                    'filesize': None,
+                    'duration': tt_info.get('duration'),
+                    'headers': {},
+                    'error': None,
+                }
+
+    # ------------------------------------------------------------------
+    # 3. Facebook — Crawler check for photo posts & multi-photo albums
     # ------------------------------------------------------------------
     if any(x in url_lower for x in ["facebook.com", "fb.watch", "fb.me", "fb.com"]):
         try:
