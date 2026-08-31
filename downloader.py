@@ -4,6 +4,7 @@ import uuid
 import time
 import shutil
 import asyncio
+import subprocess
 import logging
 import requests
 from bs4 import BeautifulSoup
@@ -169,6 +170,167 @@ def extract_tiktok_info(url: str) -> Optional[Dict[str, Any]]:
                         }
         except Exception as err:
             logger.warning(f"TikWM query error for {test_u}: {err}")
+
+    return None
+
+def extract_facebook_info(url: str) -> Optional[Dict[str, Any]]:
+    """Extract Facebook media info (HD/SD videos, Reels, multi-photo posts) using direct HTML extraction & redirect resolution."""
+    target_url = clean_url(url)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Sec-Fetch-Mode': 'navigate',
+    }
+    
+    # 1. Resolve redirect for share links, fb.watch, fb.me, etc.
+    resolved_url = target_url
+    raw_html = ""
+    try:
+        s = requests.Session()
+        s.headers.update(headers)
+        r = s.get(target_url, allow_redirects=True, timeout=12)
+        if r.status_code == 200:
+            resolved_url = r.url
+            raw_html = r.text
+    except Exception as e:
+        logger.warning(f"Facebook request error: {e}")
+
+    hd_url = None
+    sd_url = None
+    title = "Facebook Video"
+    thumb = None
+    duration = 0
+    fb_images = []
+
+    if raw_html:
+        unescaped = raw_html.replace(r'\/', '/').replace(r'\u0026', '&').replace('&amp;', '&')
+
+        # Title
+        soup = BeautifulSoup(raw_html, 'html.parser')
+        og_title = soup.find('meta', property='og:title')
+        if og_title and og_title.get('content'):
+            title = og_title['content']
+        elif soup.title:
+            title = soup.title.string or title
+
+        # Thumbnail
+        og_img = soup.find('meta', property='og:image')
+        if og_img and og_img.get('content') and og_img['content'].startswith('http'):
+            thumb = og_img['content']
+
+        # Video regexes
+        hd_patterns = [
+            r'"browser_native_hd_url"\s*:\s*"([^"]+)"',
+            r'"playable_url_quality_hd"\s*:\s*"([^"]+)"',
+            r'hd_src_no_ratelimit\s*:\s*"([^"]+)"',
+            r'hd_src\s*:\s*"([^"]+)"',
+            r'"hd_src"\s*:\s*"([^"]+)"',
+        ]
+        sd_patterns = [
+            r'"browser_native_sd_url"\s*:\s*"([^"]+)"',
+            r'"playable_url"\s*:\s*"([^"]+)"',
+            r'sd_src_no_ratelimit\s*:\s*"([^"]+)"',
+            r'sd_src\s*:\s*"([^"]+)"',
+            r'"sd_src"\s*:\s*"([^"]+)"',
+        ]
+
+        for p in hd_patterns:
+            m = re.search(p, unescaped)
+            if m:
+                hd_url = m.group(1).replace(r'\/', '/').replace(r'\u0026', '&')
+                break
+
+        for p in sd_patterns:
+            m = re.search(p, unescaped)
+            if m:
+                sd_url = m.group(1).replace(r'\/', '/').replace(r'\u0026', '&')
+                break
+
+        # Check for photo post images if no video found
+        if not (hd_url or sd_url):
+            og_type = soup.find('meta', property='og:type')
+            og_type_val = og_type.get('content', '') if og_type else ''
+            if 'video' not in og_type_val.lower():
+                if thumb and thumb.startswith('http'):
+                    fb_images.append(thumb)
+                for img in soup.find_all('img'):
+                    src = img.get('src') or img.get('data-src')
+                    if src and 'fbcdn.net' in src and not any(x in src for x in ['static.', 'rsrc.', 'emoji', 'icon', 'p50x50', 'p100x100']):
+                        if src not in fb_images:
+                            fb_images.append(src)
+
+    # 2. If direct HTML didn't get video, try yt-dlp on resolved_url
+    if not (hd_url or sd_url) and not fb_images:
+        try:
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'skip_download': True,
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(resolved_url, download=False)
+                if info:
+                    title = info.get('title', title)
+                    thumb = info.get('thumbnail', thumb)
+                    duration = info.get('duration', 0)
+                    formats = info.get('formats', [])
+                    for f in formats:
+                        u = f.get('url')
+                        fid = str(f.get('format_id', '')).lower()
+                        if 'hd' in fid and not hd_url:
+                            hd_url = u
+                        elif not sd_url:
+                            sd_url = u
+        except Exception as yt_err:
+            logger.warning(f"Facebook yt-dlp fallback: {yt_err}")
+
+    # Build result
+    best_vid = hd_url or sd_url
+    if best_vid:
+        return {
+            'status': 'success',
+            'platform': 'Facebook',
+            'title': clean_media_title(title)[:120],
+            'thumbnail': thumb,
+            'duration': int(duration) if duration else 0,
+            'is_album': False,
+            'video_url': best_vid,
+            'hd_url': hd_url or sd_url,
+            'sd_url': sd_url or hd_url,
+            'formats': [
+                {'id': '1080', 'label': '🎬 HD Video (1080p/720p)', 'type': 'video', 'badge': 'HD', 'size': '~ 15.0 MB'},
+                {'id': '720', 'label': '🎬 SD Video (Standard)', 'type': 'video', 'badge': 'SD', 'size': '~ 8.0 MB'},
+                {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 3.0 MB'},
+            ]
+        }
+    elif fb_images:
+        if len(fb_images) > 1:
+            return {
+                'status': 'success',
+                'platform': 'Facebook',
+                'title': clean_media_title(title)[:120],
+                'thumbnail': fb_images[0],
+                'is_album': True,
+                'photo_count': len(fb_images),
+                'photos': fb_images,
+                'formats': [
+                    {'id': 'album', 'label': f'🖼️ Download All ({len(fb_images)} Photos)', 'type': 'album', 'badge': f'{len(fb_images)}P', 'size': f'~ {round(len(fb_images) * 1.5, 1)} MB'},
+                    {'id': 'img_zip', 'label': '📦 Download as ZIP Album', 'type': 'album', 'badge': 'ZIP', 'size': f'~ {round(len(fb_images) * 1.5, 1)} MB'},
+                ]
+            }
+        else:
+            return {
+                'status': 'success',
+                'platform': 'Facebook',
+                'title': clean_media_title(title)[:120],
+                'thumbnail': fb_images[0],
+                'is_album': False,
+                'photos': fb_images,
+                'formats': [
+                    {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'HD', 'size': '~ 1.5 MB'},
+                ]
+            }
 
     return None
 
@@ -418,6 +580,12 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
         tt_res = extract_tiktok_info(target_url)
         if tt_res:
             return tt_res
+
+    # 3. Facebook extraction
+    if any(x in target_url.lower() for x in ["facebook.com", "fb.watch", "fb.me", "fb.com"]):
+        fb_res = extract_facebook_info(target_url)
+        if fb_res:
+            return fb_res
 
     # 2. General yt-dlp metadata extraction
     COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
@@ -676,6 +844,75 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720", 
                             'quality': 'HD',
                             'ext': 'mp4'
                         }
+
+    # 3. Try Facebook Direct Video/Audio API if applicable
+    if any(x in target_url.lower() for x in ["facebook.com", "fb.watch", "fb.me", "fb.com"]):
+        fb_info = extract_facebook_info(target_url)
+        if fb_info and fb_info.get('video_url'):
+            title = fb_info.get('title', 'Facebook Video')
+            thumb = fb_info.get('thumbnail')
+            duration = fb_info.get('duration', 0)
+            vid_target = fb_info.get('hd_url') if quality in ['1080', 'HD'] else fb_info.get('sd_url') or fb_info.get('video_url')
+            
+            if is_audio:
+                temp_vid = os.path.join(DOWNLOAD_DIR, f"fb_tmp_{uuid.uuid4().hex[:8]}.mp4")
+                out_mp3 = os.path.join(DOWNLOAD_DIR, f"fb_audio_{uuid.uuid4().hex[:8]}.mp3")
+                v_resp = requests.get(vid_target, headers=DEFAULT_HEADERS, timeout=35, stream=True)
+                if v_resp.status_code == 200:
+                    with open(temp_vid, "wb") as f:
+                        for chunk in v_resp.iter_content(chunk_size=65536):
+                            if chunk:
+                                f.write(chunk)
+                    # Convert MP4 to MP3 via ffmpeg
+                    subprocess.run(['ffmpeg', '-y', '-i', temp_vid, '-vn', '-ab', '320k', out_mp3], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    if os.path.exists(temp_vid):
+                        os.remove(temp_vid)
+                    if os.path.exists(out_mp3):
+                        if task_id:
+                            PROGRESS_STORE[task_id] = {'status': 'completed', 'percent': 100, 'msg': 'Download Complete!'}
+                        return {
+                            'file_path': out_mp3,
+                            'title': title[:150],
+                            'duration': duration,
+                            'thumbnail': thumb,
+                            'filesize': os.path.getsize(out_mp3),
+                            'is_audio': True,
+                            'quality': '320kbps',
+                            'ext': 'mp3'
+                        }
+            else:
+                unique_name = f"fb_vid_{uuid.uuid4().hex[:8]}.mp4"
+                file_path = os.path.join(DOWNLOAD_DIR, unique_name)
+                v_resp = requests.get(vid_target, headers=DEFAULT_HEADERS, timeout=35, stream=True)
+                if v_resp.status_code == 200:
+                    total_bytes = int(v_resp.headers.get('content-length', 0))
+                    downloaded = 0
+                    with open(file_path, "wb") as f:
+                        for chunk in v_resp.iter_content(chunk_size=65536):
+                            if chunk:
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if task_id and total_bytes > 0:
+                                    pct = round((downloaded / total_bytes * 100), 1)
+                                    PROGRESS_STORE[task_id] = {
+                                        'status': 'downloading',
+                                        'percent': pct,
+                                        'downloaded_mb': round(downloaded / (1024*1024), 2),
+                                        'total_mb': round(total_bytes / (1024*1024), 2),
+                                        'msg': f"Downloading Facebook video {pct}%..."
+                                    }
+                    if task_id:
+                        PROGRESS_STORE[task_id] = {'status': 'completed', 'percent': 100, 'msg': 'Download Complete!'}
+                    return {
+                        'file_path': file_path,
+                        'title': title[:150],
+                        'duration': duration,
+                        'thumbnail': thumb,
+                        'filesize': os.path.getsize(file_path),
+                        'is_audio': False,
+                        'quality': 'HD' if quality in ['1080', 'HD'] else 'SD',
+                        'ext': 'mp4'
+                    }
 
     COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.txt")
     temp_cookie = None
@@ -1128,60 +1365,49 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
                 }
 
     # ------------------------------------------------------------------
-    # 3. Facebook — Crawler check for photo posts & multi-photo albums
+    # 3. Facebook — Direct HD/SD Video & Photo extraction
     # ------------------------------------------------------------------
     if any(x in url_lower for x in ["facebook.com", "fb.watch", "fb.me", "fb.com"]):
-        try:
-            s = requests.Session()
-            s.headers.update({
-                'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            })
-            r = s.get(target_url, allow_redirects=True, timeout=8)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, 'html.parser')
-                og_type = soup.find('meta', property='og:type')
-                og_type_val = og_type.get('content', '') if og_type else ''
-                
-                fb_images = []
-                og_img = soup.find('meta', property='og:image')
-                if og_img and og_img.get('content') and og_img['content'].startswith('http'):
-                    fb_images.append(og_img['content'])
-                for img in soup.find_all('img'):
-                    src = img.get('src') or img.get('data-src')
-                    if src and 'fbcdn.net' in src and not any(x in src for x in ['static.', 'rsrc.', 'emoji', 'icon', 'p50x50', 'p100x100']):
-                        if src not in fb_images:
-                            fb_images.append(src)
-                
-                if fb_images and 'video' not in og_type_val:
-                    og_title = soup.find('meta', property='og:title')
-                    fb_title = og_title.get('content') if og_title else 'Facebook Post'
-                    if len(fb_images) > 1:
-                        return {
-                            'mode': 'images',
-                            'direct_url': None,
-                            'image_urls': fb_images,
-                            'title': fb_title[:150],
-                            'ext': 'jpg',
-                            'filesize': None,
-                            'duration': None,
-                            'headers': {},
-                            'error': None,
-                        }
-                    else:
-                        return {
-                            'mode': 'redirect',
-                            'direct_url': fb_images[0],
-                            'image_urls': fb_images,
-                            'title': fb_title[:150],
-                            'ext': 'jpg',
-                            'filesize': None,
-                            'duration': None,
-                            'headers': {},
-                            'error': None,
-                        }
-        except Exception as fb_err:
-            logger.warning(f"Facebook direct check: {fb_err}")
+        fb_info = extract_facebook_info(target_url)
+        if fb_info:
+            title = fb_info.get('title', 'Facebook Media')
+            if fb_info.get('is_album') and fb_info.get('photos'):
+                return {
+                    'mode': 'images',
+                    'direct_url': None,
+                    'image_urls': fb_info['photos'],
+                    'title': title[:150],
+                    'ext': 'jpg',
+                    'filesize': None,
+                    'duration': None,
+                    'headers': {},
+                    'error': None,
+                }
+            elif fb_info.get('video_url'):
+                vid_url = fb_info.get('hd_url') if quality in ['1080', 'HD'] else fb_info.get('sd_url') or fb_info.get('video_url')
+                return {
+                    'mode': 'redirect',
+                    'direct_url': vid_url,
+                    'image_urls': None,
+                    'title': title[:150],
+                    'ext': 'mp4',
+                    'filesize': None,
+                    'duration': fb_info.get('duration'),
+                    'headers': {},
+                    'error': None,
+                }
+            elif fb_info.get('photos'):
+                return {
+                    'mode': 'redirect',
+                    'direct_url': fb_info['photos'][0],
+                    'image_urls': fb_info['photos'],
+                    'title': title[:150],
+                    'ext': 'jpg',
+                    'filesize': None,
+                    'duration': None,
+                    'headers': {},
+                    'error': None,
+                }
 
     # ------------------------------------------------------------------
     # 2. yt-dlp metadata extraction (no download) for all platforms
