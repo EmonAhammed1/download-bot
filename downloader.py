@@ -494,12 +494,36 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
             og_title = soup.find('meta', property='og:title')
             title = og_title['content'] if og_title and og_title.get('content') else (soup.title.string if soup.title else "Instagram Post")
 
-            # Check if there is a video in the post
+            # Check og:type and og:video first — fastest signal a video post exists
+            og_type = soup.find('meta', property='og:type')
+            og_type_val = (og_type.get('content', '') if og_type else '').lower()
+            og_video = soup.find('meta', property='og:video') or soup.find('meta', property='og:video:url') or soup.find('meta', property='og:video:secure_url')
+            og_video_url = og_video.get('content', '') if og_video else ''
+
+            og_img = soup.find('meta', property='og:image')
+            thumb_url = og_img['content'] if og_img and og_img.get('content') else None
+
+            # If og:type is video or og:video exists, this is definitely a video post
+            if 'video' in og_type_val or og_video_url:
+                logger.info(f"[DEBUG 📸] Instagram SSR detected video post via og:type/og:video for shortcode {shortcode}")
+                return {
+                    'status': 'success',
+                    'platform': 'Instagram',
+                    'title': clean_media_title(title)[:120],
+                    'thumbnail': thumb_url,
+                    'duration': 0,
+                    'is_album': False,
+                    'formats': [
+                        {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
+                        {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
+                        {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
+                    ]
+                }
+
+            # Check if there is a video in the post via .mp4 URL in HTML
             video_matches = set(re.findall(r'https://[^\s"\'<>]*(?:cdninstagram\.com|fbcdn\.net)[^\s"\'<>]*\.mp4[^\s"\'<>]*', unescaped))
             if video_matches:
                 vid_url = list(video_matches)[0]
-                og_img = soup.find('meta', property='og:image')
-                thumb_url = og_img['content'] if og_img and og_img.get('content') else None
                 return {
                     'status': 'success',
                     'platform': 'Instagram',
@@ -526,9 +550,8 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
             
             # If no regex matches, check og:image
             if not post_images:
-                og_img = soup.find('meta', property='og:image')
-                if og_img and og_img.get('content') and og_img['content'].startswith('http'):
-                    post_images = [og_img['content']]
+                if thumb_url:
+                    post_images = [thumb_url]
             
             if post_images:
                 if len(post_images) > 1:
@@ -560,6 +583,68 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
     except Exception as ig_err:
         logger.warning(f"Instagram mobile SSR fallback failed: {ig_err}")
 
+    # 3. yt-dlp fallback — handles Reels & Videos that GraphQL/HTML miss
+    try:
+        logger.info(f"[DEBUG 📸] Instagram: trying yt-dlp fallback for {target_url}")
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'skip_download': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(target_url, download=False)
+            if info:
+                ig_title = clean_media_title(info.get('title', 'Instagram Post'))
+                ig_thumb = info.get('thumbnail')
+                ig_duration = info.get('duration', 0)
+                raw_fmts = info.get('formats', [])
+                has_video = any(f.get('vcodec') not in ('none', None) for f in raw_fmts) or info.get('ext') in ('mp4', 'webm', 'mov')
+                # Carousel / multiple entries
+                entries = info.get('entries', [])
+                if entries and len(entries) > 1:
+                    photos = [e.get('url') or e.get('thumbnail') for e in entries if e.get('url') or e.get('thumbnail')]
+                    if photos:
+                        return {
+                            'status': 'success',
+                            'platform': 'Instagram',
+                            'title': ig_title[:120],
+                            'thumbnail': photos[0],
+                            'is_album': True,
+                            'photo_count': len(photos),
+                            'photos': photos,
+                            'formats': [
+                                {'id': 'album', 'label': f'🖼️ Download All ({len(photos)} Photos)', 'type': 'album', 'badge': f'{len(photos)}P', 'size': f'~ {round(len(photos) * 1.5, 1)} MB'},
+                                {'id': 'img_zip', 'label': '📦 Download as ZIP Album', 'type': 'album', 'badge': 'ZIP', 'size': f'~ {round(len(photos) * 1.5, 1)} MB'}
+                            ]
+                        }
+                if has_video:
+                    return {
+                        'status': 'success',
+                        'platform': 'Instagram',
+                        'title': ig_title[:120],
+                        'thumbnail': ig_thumb,
+                        'duration': int(ig_duration) if ig_duration else 0,
+                        'is_album': False,
+                        'formats': [
+                            {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
+                            {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
+                            {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
+                        ]
+                    }
+                else:
+                    return {
+                        'status': 'success',
+                        'platform': 'Instagram',
+                        'title': ig_title[:120],
+                        'thumbnail': ig_thumb,
+                        'is_album': False,
+                        'formats': [
+                            {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'HD', 'size': '~ 1.5 MB'}
+                        ]
+                    }
+    except Exception as yt_err:
+        logger.warning(f"Instagram yt-dlp fallback failed: {yt_err}")
+
     return None
 
 def extract_media_info_sync(url: str) -> Dict[str, Any]:
@@ -574,6 +659,40 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
         ig_res = extract_instagram_post_info(target_url, shortcode)
         if ig_res:
             return ig_res
+        # If all extraction methods fail, determine media type by URL segment:
+        # /reel/ and /tv/ are ALWAYS videos; /p/ can be photo or video
+        ig_url_type = re.search(r'instagram\.com/(p|reel|reels|tv)/', target_url)
+        url_segment = ig_url_type.group(1) if ig_url_type else 'p'
+        is_reel_url = url_segment in ('reel', 'reels', 'tv')
+        logger.info(f"[DEBUG 📸] Instagram fallback by URL type: segment={url_segment}, is_reel={is_reel_url}")
+        if is_reel_url:
+            return {
+                'status': 'success',
+                'platform': 'Instagram',
+                'title': 'Instagram Reel',
+                'thumbnail': None,
+                'duration': 0,
+                'is_album': False,
+                'formats': [
+                    {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
+                    {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
+                    {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
+                ]
+            }
+        else:
+            # /p/ posts can be photo or video — return both options
+            return {
+                'status': 'success',
+                'platform': 'Instagram',
+                'title': 'Instagram Post',
+                'thumbnail': None,
+                'is_album': False,
+                'formats': [
+                    {'id': '1080', 'label': '🎬 Download Video (HD)', 'type': 'video', 'badge': 'Video', 'size': '~ 12.5 MB'},
+                    {'id': 'img', 'label': '🖼️ Download Photo (HD)', 'type': 'image', 'badge': 'Photo', 'size': '~ 1.5 MB'},
+                    {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
+                ]
+            }
 
     # 2. TikTok extraction
     if any(x in target_url.lower() for x in ["tiktok.com", "vm.tiktok.com", "vt.tiktok.com"]):
