@@ -421,17 +421,20 @@ IG_MOBILE_HEADERS = {
 
 def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dict[str, Any]]:
     """Extract Instagram metadata, videos, single photos, and carousel multi-photo albums at maximum quality."""
+    is_reel_url = any(f"/{seg}/" in target_url.lower() for seg in ['reel', 'reels', 'tv'])
+
     # 1. Try GraphQL API first
     ig_data = extract_instagram_graphql(shortcode)
     if ig_data:
-        is_video = ig_data.get('is_video', False)
+        is_video = ig_data.get('is_video', False) or is_reel_url
         caption_edges = ig_data.get('edge_media_to_caption', {}).get('edges', [])
         title = caption_edges[0].get('node', {}).get('text', 'Instagram Post') if caption_edges else 'Instagram Post'
         thumb = get_highest_res_ig_node_url(ig_data) or ig_data.get('display_url')
         duration = ig_data.get('video_duration', 0)
+        video_url = ig_data.get('video_url')
         
         children = ig_data.get('edge_sidecar_to_children', {}).get('edges', [])
-        if children:
+        if children and len(children) > 1:
             photos = []
             for c in children:
                 node = c.get('node', {})
@@ -455,7 +458,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                     ]
                 }
         
-        if is_video:
+        if is_video or is_reel_url:
             return {
                 'status': 'success',
                 'platform': 'Instagram',
@@ -463,6 +466,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                 'thumbnail': thumb,
                 'duration': int(duration),
                 'is_album': False,
+                'video_url': video_url,
                 'formats': [
                     {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
                     {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
@@ -476,12 +480,16 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                 'title': clean_media_title(title)[:120],
                 'thumbnail': thumb,
                 'is_album': False,
+                'photos': [thumb] if thumb else [],
                 'formats': [
-                    {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'HD', 'size': '~ 1.5 MB'}
+                    {'id': '1080', 'label': '🎬 1080p Full HD Video', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
+                    {'id': '720', 'label': '🎬 720p HD Video', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
+                    {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'Photo', 'size': '~ 1.5 MB'},
+                    {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
                 ]
             }
 
-    # 2. Direct Mobile SSR Webpage HTML Extraction (Extracts full carousel images & videos without login)
+    # 2. Direct Mobile SSR Webpage HTML Extraction
     try:
         session = requests.Session()
         html_resp = session.get(f"https://www.instagram.com/p/{shortcode}/", headers=IG_MOBILE_HEADERS, timeout=12)
@@ -494,7 +502,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
             og_title = soup.find('meta', property='og:title')
             title = og_title['content'] if og_title and og_title.get('content') else (soup.title.string if soup.title else "Instagram Post")
 
-            # Check og:type and og:video first — fastest signal a video post exists
+            # Check og:type and og:video
             og_type = soup.find('meta', property='og:type')
             og_type_val = (og_type.get('content', '') if og_type else '').lower()
             og_video = soup.find('meta', property='og:video') or soup.find('meta', property='og:video:url') or soup.find('meta', property='og:video:secure_url')
@@ -503,27 +511,13 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
             og_img = soup.find('meta', property='og:image')
             thumb_url = og_img['content'] if og_img and og_img.get('content') else None
 
-            # If og:type is video or og:video exists, this is definitely a video post
-            if 'video' in og_type_val or og_video_url:
-                logger.info(f"[DEBUG 📸] Instagram SSR detected video post via og:type/og:video for shortcode {shortcode}")
-                return {
-                    'status': 'success',
-                    'platform': 'Instagram',
-                    'title': clean_media_title(title)[:120],
-                    'thumbnail': thumb_url,
-                    'duration': 0,
-                    'is_album': False,
-                    'formats': [
-                        {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
-                        {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
-                        {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
-                    ]
-                }
-
-            # Check if there is a video in the post via .mp4 URL in HTML
+            # Video in post via .mp4 in HTML
             video_matches = set(re.findall(r'https://[^\s"\'<>]*(?:cdninstagram\.com|fbcdn\.net)[^\s"\'<>]*\.mp4[^\s"\'<>]*', unescaped))
-            if video_matches:
-                vid_url = list(video_matches)[0]
+            vid_url = list(video_matches)[0] if video_matches else (og_video_url or None)
+
+            # If reel or video post
+            if is_reel_url or 'video' in og_type_val or vid_url:
+                logger.info(f"[DEBUG 📸] Instagram SSR detected video post (reel={is_reel_url}) for shortcode {shortcode}")
                 return {
                     'status': 'success',
                     'platform': 'Instagram',
@@ -539,7 +533,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                     ]
                 }
 
-            # Extract photos
+            # Extract photos for carousel
             all_scontent = set(re.findall(r'https://[^\s"\'<>]*(?:cdninstagram\.com|fbcdn\.net)[^\s"\'<>]*', unescaped))
             post_cands = []
             for u in all_scontent:
@@ -547,39 +541,51 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                     post_cands.append(u)
 
             post_images = select_highest_quality_photos(post_cands)
+            if not post_images and thumb_url:
+                post_images = [thumb_url]
             
-            # If no regex matches, check og:image
-            if not post_images:
-                if thumb_url:
-                    post_images = [thumb_url]
-            
-            if post_images:
-                if len(post_images) > 1:
-                    return {
-                        'status': 'success',
-                        'platform': 'Instagram',
-                        'title': title[:120],
-                        'thumbnail': post_images[0],
-                        'is_album': True,
-                        'photo_count': len(post_images),
-                        'photos': post_images,
-                        'formats': [
-                            {'id': 'album', 'label': f'🖼️ Download All ({len(post_images)} Photos)', 'type': 'album', 'badge': f'{len(post_images)}P', 'size': f'~ {round(len(post_images) * 1.5, 1)} MB'},
-                            {'id': 'img_zip', 'label': '📦 Download as ZIP Album', 'type': 'album', 'badge': 'ZIP', 'size': f'~ {round(len(post_images) * 1.5, 1)} MB'}
-                        ]
-                    }
-                else:
-                    return {
-                        'status': 'success',
-                        'platform': 'Instagram',
-                        'title': title[:120],
-                        'thumbnail': post_images[0],
-                        'is_album': False,
-                        'photos': post_images,
-                        'formats': [
-                            {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'HD', 'size': '~ 1.5 MB'}
-                        ]
-                    }
+            if post_images and len(post_images) > 1:
+                return {
+                    'status': 'success',
+                    'platform': 'Instagram',
+                    'title': title[:120],
+                    'thumbnail': post_images[0],
+                    'is_album': True,
+                    'photo_count': len(post_images),
+                    'photos': post_images,
+                    'formats': [
+                        {'id': 'album', 'label': f'🖼️ Download All ({len(post_images)} Photos)', 'type': 'album', 'badge': f'{len(post_images)}P', 'size': f'~ {round(len(post_images) * 1.5, 1)} MB'},
+                        {'id': 'img_zip', 'label': '📦 Download as ZIP Album', 'type': 'album', 'badge': 'ZIP', 'size': f'~ {round(len(post_images) * 1.5, 1)} MB'}
+                    ]
+                }
+            elif is_reel_url:
+                return {
+                    'status': 'success',
+                    'platform': 'Instagram',
+                    'title': clean_media_title(title)[:120],
+                    'thumbnail': post_images[0] if post_images else thumb_url,
+                    'is_album': False,
+                    'formats': [
+                        {'id': '1080', 'label': '🎬 1080p Full HD', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
+                        {'id': '720', 'label': '🎬 720p HD', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
+                        {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
+                    ]
+                }
+            else:
+                return {
+                    'status': 'success',
+                    'platform': 'Instagram',
+                    'title': title[:120],
+                    'thumbnail': post_images[0] if post_images else thumb_url,
+                    'is_album': False,
+                    'photos': post_images or ([thumb_url] if thumb_url else []),
+                    'formats': [
+                        {'id': '1080', 'label': '🎬 1080p Full HD Video', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
+                        {'id': '720', 'label': '🎬 720p HD Video', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
+                        {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'Photo', 'size': '~ 1.5 MB'},
+                        {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
+                    ]
+                }
     except Exception as ig_err:
         logger.warning(f"Instagram mobile SSR fallback failed: {ig_err}")
 
@@ -598,7 +604,7 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                 ig_thumb = info.get('thumbnail')
                 ig_duration = info.get('duration', 0)
                 raw_fmts = info.get('formats', [])
-                has_video = any(f.get('vcodec') not in ('none', None) for f in raw_fmts) or info.get('ext') in ('mp4', 'webm', 'mov')
+                has_video = any(f.get('vcodec') not in ('none', None) for f in raw_fmts) or info.get('ext') in ('mp4', 'webm', 'mov') or is_reel_url
                 # Carousel / multiple entries
                 entries = info.get('entries', [])
                 if entries and len(entries) > 1:
@@ -639,7 +645,10 @@ def extract_instagram_post_info(target_url: str, shortcode: str) -> Optional[Dic
                         'thumbnail': ig_thumb,
                         'is_album': False,
                         'formats': [
-                            {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'HD', 'size': '~ 1.5 MB'}
+                            {'id': '1080', 'label': '🎬 1080p Full HD Video', 'type': 'video', 'badge': 'FHD', 'size': '~ 12.5 MB'},
+                            {'id': '720', 'label': '🎬 720p HD Video', 'type': 'video', 'badge': 'HD', 'size': '~ 6.5 MB'},
+                            {'id': 'img', 'label': '🖼️ Download HD Photo', 'type': 'image', 'badge': 'Photo', 'size': '~ 1.5 MB'},
+                            {'id': 'MP3', 'label': '🎵 MP3 Audio (320kbps)', 'type': 'audio', 'badge': 'Audio', 'size': '~ 2.0 MB'}
                         ]
                     }
     except Exception as yt_err:
@@ -1444,8 +1453,8 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
         if ig_info:
             title = ig_info.get('title', 'Instagram Post')
 
-            # Album / carousel
-            if ig_info.get('is_album') and ig_info.get('photos'):
+            # Album / carousel (when album format requested)
+            if ig_info.get('is_album') and ig_info.get('photos') and quality in ['album', 'img_zip', 'album_zip']:
                 return {
                     'mode': 'images',
                     'direct_url': None,
@@ -1458,9 +1467,9 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
                     'error': None,
                 }
 
-            # Single image only (NOT a reel URL, NOT video formats present)
-            if ig_is_image_only and not is_reel_url:
-                img_url = ig_info.get('photos', [ig_info.get('thumbnail')])[0]
+            # If user explicitly chose Photo format ('img' / 'photo')
+            if quality in ['img', 'photo', 'image']:
+                img_url = (ig_info.get('photos') or [ig_info.get('thumbnail')])[0] if (ig_info.get('photos') or ig_info.get('thumbnail')) else None
                 if img_url:
                     return {
                         'mode': 'redirect',
@@ -1474,14 +1483,26 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
                         'error': None,
                     }
 
-            # Video post — fall through to yt-dlp below for actual video URL
-            if ig_has_video or is_reel_url:
-                logger.info(f"[DEBUG] Instagram video post detected (reel={is_reel_url}), using yt-dlp for direct URL")
-                # Don't return here — let yt-dlp handle the actual download URL
+            # If direct video URL is available and video was requested
+            if ig_info.get('video_url') and not is_audio and quality not in ['img', 'photo', 'album', 'img_zip']:
+                return {
+                    'mode': 'redirect',
+                    'direct_url': ig_info['video_url'],
+                    'image_urls': None,
+                    'title': title[:150],
+                    'ext': 'mp4',
+                    'filesize': None,
+                    'duration': ig_info.get('duration'),
+                    'headers': {},
+                    'error': None,
+                }
+
+            # Otherwise, fall through to yt-dlp / download_media below for video/audio processing
+            if ig_has_video or is_reel_url or not is_audio:
+                logger.info(f"[DEBUG] Instagram media requested (quality={quality}), falling through to engine")
 
         elif is_reel_url:
-            # No ig_info at all but URL is a reel — let yt-dlp try
-            logger.info(f"[DEBUG] Instagram reel URL, no info extracted, trying yt-dlp for {target_url}")
+            logger.info(f"[DEBUG] Instagram reel URL, no direct info extracted, using engine for {target_url}")
 
     # ------------------------------------------------------------------
     # 2. TikTok — Direct TikWM API (HD video, MP3 audio, Photo slideshow)
