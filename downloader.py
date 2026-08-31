@@ -1430,8 +1430,21 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
     if ig_match:
         shortcode = ig_match.group(1)
         ig_info = extract_instagram_post_info(target_url, shortcode)
+
+        # Determine content type from formats list (most reliable signal)
+        ig_formats = ig_info.get('formats', []) if ig_info else []
+        ig_has_video = any(f.get('type') == 'video' for f in ig_formats)
+        ig_is_image_only = ig_formats and all(f.get('type') == 'image' for f in ig_formats)
+
+        # URL-type fallback: /reel/ and /tv/ are ALWAYS videos
+        ig_url_type = re.search(r'instagram\.com/(p|reel|reels|tv)/', target_url)
+        url_segment = ig_url_type.group(1) if ig_url_type else 'p'
+        is_reel_url = url_segment in ('reel', 'reels', 'tv')
+
         if ig_info:
             title = ig_info.get('title', 'Instagram Post')
+
+            # Album / carousel
             if ig_info.get('is_album') and ig_info.get('photos'):
                 return {
                     'mode': 'images',
@@ -1444,18 +1457,31 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
                     'headers': {},
                     'error': None,
                 }
-            elif ig_info.get('thumbnail') and not ig_info.get('duration') and not is_audio:
-                return {
-                    'mode': 'redirect',
-                    'direct_url': ig_info['thumbnail'],
-                    'image_urls': [ig_info['thumbnail']],
-                    'title': title[:150],
-                    'ext': 'jpg',
-                    'filesize': None,
-                    'duration': None,
-                    'headers': {},
-                    'error': None,
-                }
+
+            # Single image only (NOT a reel URL, NOT video formats present)
+            if ig_is_image_only and not is_reel_url:
+                img_url = ig_info.get('photos', [ig_info.get('thumbnail')])[0]
+                if img_url:
+                    return {
+                        'mode': 'redirect',
+                        'direct_url': img_url,
+                        'image_urls': [img_url],
+                        'title': title[:150],
+                        'ext': 'jpg',
+                        'filesize': None,
+                        'duration': None,
+                        'headers': {},
+                        'error': None,
+                    }
+
+            # Video post — fall through to yt-dlp below for actual video URL
+            if ig_has_video or is_reel_url:
+                logger.info(f"[DEBUG] Instagram video post detected (reel={is_reel_url}), using yt-dlp for direct URL")
+                # Don't return here — let yt-dlp handle the actual download URL
+
+        elif is_reel_url:
+            # No ig_info at all but URL is a reel — let yt-dlp try
+            logger.info(f"[DEBUG] Instagram reel URL, no info extracted, trying yt-dlp for {target_url}")
 
     # ------------------------------------------------------------------
     # 2. TikTok — Direct TikWM API (HD video, MP3 audio, Photo slideshow)
