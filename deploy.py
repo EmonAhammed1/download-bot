@@ -27,8 +27,8 @@ FILES_TO_SYNC = [
     "requirements.txt",
     "Dockerfile",
     "docker-compose.yml",
+    ".dockerignore",
     "README.md",
-    "cookies.txt",
 ]
 
 DIRS_TO_SYNC = [
@@ -50,9 +50,9 @@ def upload_dir(sftp, local_dir, remote_dir):
             sftp.put(local_file, remote_file)
             print(f"   -> Uploaded {file}")
 
-def deploy_docker(commit_msg="Update bot and web app"):
+def deploy_docker(commit_msg="Update bot and web app in Docker"):
     print("==========================================")
-    print("🐳 Deploying Telegram Bot & Web App to VPS")
+    print("🐳 Deploying Telegram Bot & Web App via Docker to VPS")
     print("==========================================")
 
     # 1. Git Add, Commit & Push to GitHub
@@ -90,10 +90,10 @@ def deploy_docker(commit_msg="Update bot and web app"):
             print(f"[STDERR]:\n{err.strip()}")
         return out, err
 
-    # 3. Stop systemd service if running to avoid conflict
-    print("\n3. Stopping old systemd service (switching to Docker)...")
-    exec_cmd("systemctl stop media-downloader-bot || true")
-    exec_cmd("systemctl disable media-downloader-bot || true")
+    # 3. Stop systemd services to avoid conflict with Docker port 8000
+    print("\n3. Stopping old systemd services to switch to Docker...")
+    exec_cmd("systemctl stop media-downloader-bot media-downloader-web || true")
+    exec_cmd("systemctl disable media-downloader-bot media-downloader-web || true")
 
     # 4. Upload files via SFTP
     print("\n4. Syncing all files to VPS...")
@@ -114,25 +114,25 @@ def deploy_docker(commit_msg="Update bot and web app"):
 
     sftp.close()
 
-    # 5. Restart BOTH systemd services (bot + web app)
-    print("\n5. Restarting Telegram Bot AND Web App services on VPS...")
-    exec_cmd("systemctl daemon-reload")
-    exec_cmd("systemctl enable media-downloader-bot && systemctl restart media-downloader-bot")
-    exec_cmd("systemctl enable media-downloader-web && systemctl restart media-downloader-web")
+    # 5. Build and launch Docker Compose containers
+    print("\n5. Building and starting Docker containers (telegram-media-bot + media-web-app)...")
+    exec_cmd(f"cd {REMOTE_APP_DIR} && (docker compose up -d --build || docker-compose up -d --build)")
 
-    time.sleep(3)
+    time.sleep(5)
 
-    # 6. Verify both services
-    print("\n6. Verifying both services...")
-    exec_cmd("systemctl status media-downloader-bot --no-pager | head -8")
-    exec_cmd("systemctl status media-downloader-web --no-pager | head -8")
-    exec_cmd("journalctl -u media-downloader-bot -n 10 --no-pager")
+    # 6. Verify Docker containers
+    print("\n6. Verifying Docker containers status...")
+    exec_cmd("docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'")
+    print("\n--- Telegram Bot Docker Logs ---")
+    exec_cmd("docker logs --tail 15 telegram-media-bot")
+    print("\n--- Web App Docker Logs ---")
+    exec_cmd("docker logs --tail 15 media-web-app")
 
     ssh.close()
     print("\n==========================================")
-    print("🎉 Telegram Bot & Web App are UP & RUNNING on your VPS!")
+    print("🎉 Telegram Bot & Web App are running in DOCKER on your VPS!")
     print("==========================================")
 
 if __name__ == "__main__":
-    msg = sys.argv[1] if len(sys.argv) > 1 else "Update bot and web app"
+    msg = sys.argv[1] if len(sys.argv) > 1 else "Deploy bot and web app with Docker"
     deploy_docker(msg)

@@ -594,7 +594,13 @@ def extract_media_info_sync(url: str) -> Dict[str, Any]:
         'quiet': True,
         'no_warnings': True,
         'skip_download': True,
-        'js_runtimes': {'node': {}},
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['tv', 'web_safari', 'web_embedded', 'android', 'ios', 'web'],
+                'player_skip': ['configs'],
+            }
+        },
+        'js_runtimes': {'node': {}, 'deno': {}},
         'remote_components': ['ejs:github', 'ejs:npm'],
     }
     if os.path.exists(COOKIE_FILE):
@@ -958,7 +964,13 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720", 
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
-            'js_runtimes': {'node': {}},
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['tv', 'web_safari', 'web_embedded', 'android', 'ios', 'web'],
+                    'player_skip': ['configs'],
+                }
+            },
+            'js_runtimes': {'node': {}, 'deno': {}},
             'remote_components': ['ejs:github', 'ejs:npm'],
             'progress_hooks': [_progress_hook],
             'postprocessors': [{
@@ -982,7 +994,13 @@ def download_media_sync(url: str, is_audio: bool = False, quality: str = "720", 
             'noplaylist': True,
             'quiet': True,
             'no_warnings': True,
-            'js_runtimes': {'node': {}},
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['tv', 'web_safari', 'web_embedded', 'android', 'ios', 'web'],
+                    'player_skip': ['configs'],
+                }
+            },
+            'js_runtimes': {'node': {}, 'deno': {}},
             'remote_components': ['ejs:github', 'ejs:npm'],
             'progress_hooks': [_progress_hook],
         }
@@ -1435,9 +1453,12 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
         'noplaylist': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web', 'ios', 'mweb'],
+                'player_client': ['tv', 'web_safari', 'web_embedded', 'android', 'ios', 'web'],
+                'player_skip': ['configs'],
             }
         },
+        'js_runtimes': {'node': {}, 'deno': {}},
+        'remote_components': ['ejs:github', 'ejs:npm'],
     }
 
     if os.path.exists(COOKIE_FILE):

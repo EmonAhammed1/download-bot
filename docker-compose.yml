@@ -2,9 +2,21 @@ services:
   telegram-media-bot:
     container_name: telegram-media-bot
     build: .
+    command: ["python", "bot.py"]
     restart: always
     environment:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./downloads:/app/downloads
-      - ./cookies.txt:/app/cookies.txt
+
+  media-web-app:
+    container_name: media-web-app
+    build: .
+    command: ["uvicorn", "web_app:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./downloads:/app/downloads
