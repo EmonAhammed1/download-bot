@@ -2233,6 +2233,140 @@ body {
   .cta-section { order: 9; }
   #platforms { order: 10; }
   .app-footer { order: 11; }
+
+  /* Explore Platforms on Mobile */
+  .explore-platforms-section {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 2.5rem;
+  }
+
+  .explore-title {
+    font-size: 1.25rem;
+    margin-bottom: 1.35rem;
+  }
+
+  .explore-circles-row {
+    gap: 1.15rem 1rem;
+  }
+
+  .circle-icon {
+    width: 56px;
+    height: 56px;
+  }
+
+  .circle-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .circle-name {
+    font-size: 0.78rem;
+  }
+
+  /* Pixel-Perfect Mobile Footer (Retro Brutalist) */
+  .app-footer {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 1.65rem 1.15rem 1.35rem 1.15rem;
+    border-radius: var(--radius-lg);
+    box-shadow: 4px 4px 0px var(--ink-black);
+    overflow: hidden;
+    margin-top: 1.5rem;
+  }
+
+  .footer-top-row {
+    display: flex;
+    flex-direction: column;
+    grid-template-columns: 1fr;
+    gap: 1.65rem;
+    padding-bottom: 1.35rem;
+    border-bottom: 2px dashed #D1D5DB;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .footer-brand-col {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .footer-desc {
+    max-width: 100%;
+    font-size: 0.84rem;
+    line-height: 1.55;
+  }
+
+  .footer-links-col {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .footer-heading {
+    font-size: 0.95rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .footer-nav {
+    gap: 0.5rem;
+  }
+
+  .footer-nav a {
+    font-size: 0.84rem;
+    display: inline-block;
+    word-break: break-word;
+  }
+
+  .footer-contact-col {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .footer-contact-text {
+    font-size: 0.84rem;
+    margin-bottom: 0.45rem;
+    word-break: break-word;
+  }
+
+  .portfolio-badge-link,
+  .telegram-badge-link {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: 0.78rem;
+    padding: 0.35rem 0.7rem;
+    word-break: break-all;
+    white-space: normal;
+  }
+
+  .footer-bottom-row {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding-top: 1.25rem;
+    text-align: center;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .footer-copyright {
+    font-size: 0.78rem;
+    line-height: 1.55;
+    text-align: center;
+    width: 100%;
+  }
+
+  .btn-back-to-top {
+    width: 38px;
+    height: 38px;
+    font-size: 1.15rem;
+    flex-shrink: 0;
+    margin: 0 auto;
+  }
 }
 
 /* ==========================================================================
