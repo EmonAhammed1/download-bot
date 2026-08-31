@@ -1,38 +1,84 @@
-# 🎬 Universal Media Downloader Telegram Bot
+# 🚀 Universal Media Downloader — Web App & Telegram Bot
 
-An advanced, high-performance Telegram Bot built with Python that allows users to download videos, audio (MP3), photo albums, and carousels from all major social media platforms.
+<p align="center">
+  <a href="http://72.244.153.23"><img src="https://img.shields.io/badge/🌐_Live_Website-72.244.153.23-00d2ff?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live Web App"></a>
+  <a href="https://t.me/my1_assistant_demo_bot"><img src="https://img.shields.io/badge/🤖_Telegram_Bot-@my1__assistant__demo__bot-229ED9?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram Bot"></a>
+  <a href="https://emonahammed.shop/"><img src="https://img.shields.io/badge/👨‍💻_Developer-Emon_Ahammed-ff007f?style=for-the-badge&logo=safari&logoColor=white" alt="Developer Portfolio"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/FastAPI-0.110+-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/yt--dlp-Latest-red?style=flat-square&logo=youtube&logoColor=white" alt="yt-dlp">
+  <img src="https://img.shields.io/badge/FFmpeg-Enabled-green?style=flat-square&logo=ffmpeg&logoColor=white" alt="FFmpeg">
+  <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker">
+</p>
+
+An ultra-fast, high-performance universal media extraction ecosystem available as both a **Retro-Modern Web Application** and an **Automated Telegram Bot**. Download 4K / 1080p videos, 320kbps MP3 audio, multi-image carousels, reels, and stories with zero watermark and maximum speed from all major platforms.
 
 ---
 
-## 🌟 Supported Platforms & Features
+## 🔗 Quick Access Links
 
-| Platform | Supported Content | Available Qualities |
+| Platform | Live Access Link | Description |
 | :--- | :--- | :--- |
-| 🔴 **YouTube** | Videos, Shorts, Music | 1080p (FHD), 720p (HD), 480p, 360p, MP3 Audio (192kbps) |
-| 📸 **Instagram** | Reels, Video Posts, Multi-Image Carousels, Photos | Full HD 1080p, Direct Video MP4, High-Res Image Albums |
-| 🔵 **Facebook** | Videos, Reels, Public Photo Posts | HD MP4, SD, MP3 Audio, High-Res Images |
-| 🎵 **TikTok** | Videos without watermark, Audio | HD MP4, MP3 |
-| 🐦 **Twitter / X** | Videos, Photos, GIFs | Best Quality MP4 / JPG |
-| 📌 **Pinterest** | Videos, High-Resolution Pins | Best Quality MP4 / JPG |
+| 🌐 **Web Application** | [**http://72.244.153.23**](http://72.244.153.23) | Instant browser download with quality picker & live CDN streaming |
+| 🤖 **Telegram Bot** | [**@my1_assistant_demo_bot**](https://t.me/my1_assistant_demo_bot) | Direct Telegram downloads with inline keyboards & album splitting |
+| 👨‍💻 **Developer Portfolio** | [**emonahammed.shop**](https://emonahammed.shop/) | Created & maintained by Emon Ahammed |
 
 ---
 
-## 📁 Repository Structure & Architecture
+## 🌟 Supported Platforms & Formats
+
+| Platform | Supported Content | Available Qualities & Formats |
+| :--- | :--- | :--- |
+| 🔴 **YouTube** | Videos, Shorts, Music Tracks | 1080p (FHD), 720p (HD), 480p, 360p, MP3 Audio (320kbps / 192kbps) |
+| 📸 **Instagram** | Reels, Video Posts, Multi-Image Carousels, Stories, Photos | 1080p Direct MP4, High-Res Original JPGs, Multi-Photo Galleries |
+| 🔵 **Facebook** | Public Videos, Reels, Watch Videos, High-Res Photos | HD MP4, SD MP4, High-Bitrate MP3 Audio, Full JPGs |
+| 🎵 **TikTok** | Videos without Watermark, Audio Only | Crystal-clear HD MP4 (No Watermark), MP3 |
+| 🐦 **Twitter / X** | Videos, Photos, Animated GIFs | Best Quality MP4 / JPG |
+| 📌 **Pinterest** | Video Pins, High-Resolution Graphic Pins | Best Quality MP4 / High-Res JPG |
+
+---
+
+## ⚡ Dual-Interface Ecosystem
+
+### 1. 🌐 Modern Web Application (`web_app.py`)
+- **Retro-Brutalist & Cyber Aesthetic UI:** Responsive layout with micro-animations and intuitive format selectors.
+- **Direct CDN Streaming & Proxy Engine:** Zero server disk consumption for YouTube, Instagram, Facebook, and TikTok streaming.
+- **Single & Multi-Image Gallery:** Dynamic grid rendering for Instagram carousel posts with individual and batch downloads.
+- **Real-Time Client Feedback:** Visual loading indicators, status cards, and download triggers.
+
+### 2. 🤖 Automated Telegram Bot (`bot.py`)
+- **Interactive Inline Keyboards:** Instant resolution selection (1080p, 720p, 480p, MP3) with 1-tap callbacks.
+- **Smart Balanced Media Groups:** Automatically balances photo albums (e.g. 14 photos split into 7 + 7) adhering to Telegram's 10-media limit.
+- **Resilient Network Timeouts:** Custom 300s `HTTPXRequest` handlers prevent timeout disconnects when dispatching 50MB files.
+- **Auto-Cleanup:** Immediate deletion of temporary downloads post-upload to maintain a clean filesystem.
+
+---
+
+## 📁 Repository Structure
 
 ```
 download-bot/
-├── bot.py                  # Main Telegram Bot logic & message/callback handlers
-├── downloader.py           # Core media extraction engine (yt-dlp, Instagram GraphQL API, BS4)
-├── config.py               # Bot token configuration and file size limits
-├── deploy.py               # 1-Click Auto-Sync to GitHub and Deploy to VPS via SSH/SFTP
-├── deploy.bat              # Windows batch script for 1-click deployment
+├── bot.py                  # Telegram Bot service (python-telegram-bot v20+)
+├── web_app.py              # FastAPI Web Application & streaming endpoints
+├── downloader.py           # Core extraction engine (yt-dlp, Instagram GraphQL API, BS4)
+├── config.py               # Shared configuration & file size thresholds
+├── templates/
+│   └── index.html          # Web application UI template
+├── static/
+│   ├── css/
+│   │   └── style.css       # Retro-brutalist custom styling
+│   ├── js/
+│   │   └── app.js          # Dynamic UI interactions & download pipeline
+│   └── img/                # Logos, favicons & assets
+├── deploy.py               # 1-Click Git push & SSH/SFTP deploy to VPS
+├── deploy.bat              # Windows 1-click batch launcher
 ├── requirements.txt        # Python package dependencies
-├── Dockerfile              # Docker container configuration with FFmpeg & Python 3.11
-├── Procfile                # Worker process file for cloud platforms (Render, Heroku)
-├── .gitignore              # Ignores temp downloads, __pycache__, and venvs
+├── Dockerfile              # Container definition (Python 3.11 + FFmpeg + Deno)
+├── docker-compose.yml      # Multi-service container orchestration
 └── .github/
     └── workflows/
-        └── deploy.yml      # GitHub Actions CI/CD pipeline for automated VPS deployment
+        └── deploy.yml      # CI/CD deployment workflow
 ```
 
 ---
@@ -40,21 +86,16 @@ download-bot/
 ## 🧠 Key Technical Highlights
 
 1. **Instagram GraphQL Direct Integration:**
-   - Bypasses traditional `yt-dlp` scraping bottlenecks for Instagram multi-photo carousels and posts by directly querying Instagram's official GraphQL document endpoints.
-   - Extracts all carousel images in original full-resolution (up to 14+ photos).
+   Bypasses typical scraping limits for Instagram carousels by directly querying Instagram's official GraphQL endpoints to retrieve full-resolution original media.
 
-2. **Smart Balanced Media Groups:**
-   - Telegram Bot API enforces a hard limit of max 10 photos per `sendMediaGroup`.
-   - The bot dynamically splits photo albums evenly (e.g., 14 photos are split into 7 + 7 balanced albums) so images render in a clean, symmetric grid.
+2. **Zero-Disk Proxy Streaming:**
+   Pipes media streams from source CDNs directly to client browsers using `httpx` chunk streaming, preventing high I/O disk bottlenecks on the VPS.
 
-3. **Extended HTTP Request Timeouts:**
-   - Configured with custom `HTTPXRequest` (300s read/write timeouts) to prevent `Timed out` errors when uploading large video/audio files (10MB - 50MB) to Telegram.
+3. **Crash-Proof HTML Sanitization:**
+   Escapes all dynamic metadata and titles with `html.escape` to ensure error-free rendering in Telegram's HTML parse mode and Web DOM.
 
-4. **Crash-Proof HTML Parsing:**
-   - All dynamic titles, user names, and descriptions are escaped with `html.escape` and rendered using `ParseMode.HTML` to prevent entity parse errors from special characters, emojis, and hashtags.
-
-5. **Automatic File Cleanup:**
-   - Temporary files downloaded to the local `downloads/` directory are immediately deleted after being dispatched to Telegram, ensuring zero disk bloat.
+4. **1-Click Auto-Deploy Pipeline:**
+   Full synchronization pipeline via `deploy.py` that pushes code to GitHub and updates both systemd services on the production VPS in under 5 seconds.
 
 ---
 
@@ -62,7 +103,7 @@ download-bot/
 
 ### Prerequisites
 - Python 3.10+
-- FFmpeg installed and added to system PATH
+- FFmpeg installed and available in system `PATH`
 
 ### Installation
 ```bash
@@ -70,13 +111,12 @@ download-bot/
 git clone https://github.com/EmonAhammed1/download-bot.git
 cd download-bot
 
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv venv
 
-# Activate virtual environment
-# On Windows:
+# Windows:
 venv\Scripts\activate
-# On Linux/macOS:
+# Linux/macOS:
 source venv/bin/activate
 
 # Install dependencies
@@ -84,60 +124,73 @@ pip install -r requirements.txt
 ```
 
 ### Running Locally
+
+**To run the Web Application:**
+```bash
+python web_app.py
+# Web app will be accessible at http://localhost:8000
+```
+
+**To run the Telegram Bot:**
 ```bash
 python bot.py
 ```
 
+**To run both using Docker:**
+```bash
+docker-compose up -d --build
+```
+
 ---
 
-## 🚀 VPS Deployment & Infrastructure
+## 🚀 VPS Production Deployment
 
-The bot is actively hosted on an Ubuntu VPS with `systemd` process management:
+Both the Web App and Telegram Bot run on an Ubuntu VPS managed via `systemd`:
 
 - **Server IP:** `72.244.153.23`
+- **Web App URL:** `http://72.244.153.23` (Port 8000 / Reverse Proxied)
+- **Telegram Bot:** `@my1_assistant_demo_bot`
 - **Application Directory:** `/opt/media-downloader-bot`
-- **Virtual Environment:** `/opt/media-downloader-bot/venv`
-- **Systemd Service:** `media-downloader-bot.service`
 
 ### VPS Service Management Commands
+
 ```bash
-# Check status
+# Check status of both services
+systemctl status media-downloader-web
 systemctl status media-downloader-bot
 
 # View live real-time logs
+journalctl -u media-downloader-web -f
 journalctl -u media-downloader-bot -f
 
-# Restart bot
+# Restart services
+systemctl restart media-downloader-web
 systemctl restart media-downloader-bot
-
-# Stop bot
-systemctl stop media-downloader-bot
 ```
 
 ---
 
 ## 🔄 1-Click Sync & Deployment Workflow
 
-Whenever you make changes to the codebase, run:
+Whenever updates are made locally, run:
 
 ```bash
 python deploy.py "Your commit message"
 ```
-Or simply double-click `deploy.bat` on Windows.
+Or double-click `deploy.bat` on Windows.
 
-**What this does automatically:**
-1. Stages and commits all changes.
+**Automated actions performed:**
+1. Stages and commits all changes in Git.
 2. Pushes commits to GitHub `origin main`.
-3. Connects to the VPS via SSH / SFTP.
-4. Uploads the updated Python files to `/opt/media-downloader-bot`.
-5. Restarts `media-downloader-bot.service` on the server in ~3 seconds.
+3. Connects to VPS via SSH / SFTP.
+4. Uploads all modified code, templates, and static assets.
+5. Restarts `media-downloader-web` and `media-downloader-bot` services instantly.
 
 ---
 
-## 🤖 Instructions for Future AI Agents & Developers
+## 👨‍💻 Author & Maintainer
 
-When extending or maintaining this codebase:
-- **State Management & Async:** The bot runs asynchronously with `python-telegram-bot` v20+. Always wrap synchronous operations (like `yt-dlp` or file I/O) in `asyncio.to_thread`.
-- **Parsing Mode:** Always use `ParseMode.HTML` and wrap dynamic strings in `html.escape()`. Never use legacy Markdown.
-- **File Limits:** Keep Telegram Bot API's 50MB file size limit in mind; if a file exceeds `MAX_FILE_SIZE`, alert the user and offer a lower resolution.
-- **Service Isolation:** When deploying on the VPS, never touch global packages or system services. Keep all operations confined to `/opt/media-downloader-bot` and `media-downloader-bot.service`.
+- **Developer:** Emon Ahammed
+- **Portfolio:** [https://emonahammed.shop/](https://emonahammed.shop/)
+- **GitHub:** [@EmonAhammed1](https://github.com/EmonAhammed1)
+
