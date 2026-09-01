@@ -238,6 +238,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"📸 Total Photos: <b>{count}</b>\n"
                     f"🌐 <b>Web App:</b> <a href=\"{WEBSITE_URL}\">Universal Downloader</a>\n"
+                    f"👨‍💻 <b>Author:</b> <a href=\"{PORTFOLIO_URL}\">Emon Ahammed</a>\n"
                     f"✨ @{bot_username}"
                 )
 
@@ -324,6 +325,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"📸 Total Photos: <b>{count}</b>\n"
                 f"🌐 <b>Web App:</b> <a href=\"{WEBSITE_URL}\">Universal Downloader</a>\n"
+                f"👨‍💻 <b>Author:</b> <a href=\"{PORTFOLIO_URL}\">Emon Ahammed</a>\n"
                 f"✨ @{bot_username}"
             )
 
@@ -432,6 +434,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"📊 <b>Quality:</b> {quality_label}\n"
                 f"🌐 <b>Web App:</b> <a href=\"{WEBSITE_URL}\">Universal Downloader</a>\n"
+                f"👨‍💻 <b>Author:</b> <a href=\"{PORTFOLIO_URL}\">Emon Ahammed</a>\n"
                 f"✨ @{bot_username}"
             )
 
@@ -542,6 +545,7 @@ async def handle_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"📊 <b>Quality:</b> {quality_label}\n"
             f"🌐 <b>Web App:</b> <a href=\"{WEBSITE_URL}\">Universal Downloader</a>\n"
+            f"👨‍💻 <b>Author:</b> <a href=\"{PORTFOLIO_URL}\">Emon Ahammed</a>\n"
             f"✨ @{bot_username}"
         )
 
