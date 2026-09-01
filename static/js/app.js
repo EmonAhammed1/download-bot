@@ -400,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (percentBadge) percentBadge.textContent = '100%';
       if (speedEtaLabel) speedEtaLabel.textContent = '✅ Complete';
 
-      // ── MODE: redirect ── browser downloads directly via attachment proxy
+      // ── MODE: redirect ── browser downloads directly via attachment proxy AND opens CDN streaming tab
       if (data.mode === 'redirect') {
         const isImg = ['jpg', 'jpeg', 'png', 'webp'].includes((data.ext || '').toLowerCase());
         if (isImg) {
@@ -408,9 +408,15 @@ document.addEventListener('DOMContentLoaded', () => {
           const downloadUrl = `/api/download_image?url=${encodeURIComponent(data.direct_url)}&filename=${encodeURIComponent(data.filename)}`;
           _triggerAttachmentDownload(downloadUrl);
         } else {
-          if (statusMsg) statusMsg.textContent = '✅ Video ready! Starting download...';
+          if (statusMsg) statusMsg.textContent = '✅ Video ready! Starting download & streaming...';
+          // 1. Direct file download to user's disk/Downloads folder
           const downloadUrl = `/api/download_video?url=${encodeURIComponent(data.direct_url)}&filename=${encodeURIComponent(data.filename)}`;
           _triggerAttachmentDownload(downloadUrl);
+
+          // 2. Open high-speed CDN streaming player in new tab
+          if (data.direct_url) {
+            _triggerDownload(data.direct_url, data.filename);
+          }
         }
         setTimeout(() => { downloadStatus.style.display = 'none'; }, 4000);
         return;
