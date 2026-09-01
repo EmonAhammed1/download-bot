@@ -469,6 +469,57 @@ async def download_image_proxy(url: str, filename: str = "photo.jpg"):
     )
 
 
+@app.get("/api/download_video")
+async def download_video_proxy(url: str, filename: str = "video.mp4", request: Request = None):
+    """
+    Stream video or audio directly from CDN with Content-Disposition: attachment header.
+    Forces browser to download the file directly into user's Downloads folder without opening player tabs.
+    Supports range requests / streaming bytes with zero VPS disk storage.
+    """
+    if not url or not url.startswith("http"):
+        raise HTTPException(status_code=400, detail="Invalid video URL")
+    
+    # Clean filename
+    safe_name = "".join(c for c in filename if c.isalnum() or c in (' ', '_', '-', '.')).strip() or "video.mp4"
+    if not any(safe_name.lower().endswith(ext) for ext in ['.mp4', '.webm', '.mkv', '.mp3', '.m4a']):
+        safe_name += ".mp4"
+    
+    vid_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        'Accept': '*/*',
+    }
+    if request:
+        range_hdr = request.headers.get('range')
+        if range_hdr:
+            vid_headers['Range'] = range_hdr
+
+    ext_lower = safe_name.rsplit('.', 1)[-1].lower() if '.' in safe_name else 'mp4'
+    content_type_map = {
+        'mp4': 'video/mp4', 'webm': 'video/webm', 'mkv': 'video/x-matroska',
+        'mp3': 'audio/mpeg', 'm4a': 'audio/mp4', 'ogg': 'audio/ogg',
+    }
+    media_type = content_type_map.get(ext_lower, 'video/mp4')
+
+    async def _video_stream_generator():
+        async with httpx.AsyncClient(timeout=300.0, follow_redirects=True) as client:
+            async with client.stream("GET", url, headers=vid_headers) as resp:
+                if resp.status_code not in (200, 206):
+                    yield b""
+                    return
+                async for chunk in resp.aiter_bytes(chunk_size=65536):
+                    yield chunk
+
+    return StreamingResponse(
+        _video_stream_generator(),
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_name}"',
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "no-cache",
+        }
+    )
+
+
 @app.get("/api/stream/{token}")
 async def proxy_stream(token: str, request: Request):
     """

@@ -400,7 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (percentBadge) percentBadge.textContent = '100%';
       if (speedEtaLabel) speedEtaLabel.textContent = '✅ Complete';
 
-      // ── MODE: redirect ── browser downloads directly from CDN
+      // ── MODE: redirect ── browser downloads directly via attachment proxy
       if (data.mode === 'redirect') {
         const isImg = ['jpg', 'jpeg', 'png', 'webp'].includes((data.ext || '').toLowerCase());
         if (isImg) {
@@ -408,8 +408,9 @@ document.addEventListener('DOMContentLoaded', () => {
           const downloadUrl = `/api/download_image?url=${encodeURIComponent(data.direct_url)}&filename=${encodeURIComponent(data.filename)}`;
           _triggerAttachmentDownload(downloadUrl);
         } else {
-          if (statusMsg) statusMsg.textContent = '✅ Direct link ready! Starting download...';
-          _triggerDownload(data.direct_url, data.filename);
+          if (statusMsg) statusMsg.textContent = '✅ Video ready! Starting download...';
+          const downloadUrl = `/api/download_video?url=${encodeURIComponent(data.direct_url)}&filename=${encodeURIComponent(data.filename)}`;
+          _triggerAttachmentDownload(downloadUrl);
         }
         setTimeout(() => { downloadStatus.style.display = 'none'; }, 4000);
         return;
@@ -424,10 +425,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // ── MODE: stream ── VPS pipes bytes in real-time
+      // ── MODE: stream ── VPS pipes bytes in real-time directly as attachment
       if (data.mode === 'stream') {
         if (statusMsg) statusMsg.textContent = '📡 Streaming media... download will start shortly.';
-        _triggerDownload(data.stream_url, data.filename);
+        _triggerAttachmentDownload(data.stream_url);
         setTimeout(() => { downloadStatus.style.display = 'none'; }, 4000);
         return;
       }
