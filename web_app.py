@@ -5,6 +5,8 @@ import json
 import time
 import logging
 import asyncio
+import urllib.parse
+import re
 from typing import Optional
 import httpx
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
@@ -46,6 +48,19 @@ logger = logging.getLogger("WebDownloader")
 def debugPrint(msg: str):
     """User rule #11: Debug print in terminal for every API hit and response."""
     print(f"\n[DEBUG 🚀] {msg}", flush=True)
+
+
+def make_content_disposition_header(filename: str, default_name: str = "download.mp4") -> str:
+    """
+    Format RFC 5987 / RFC 6266 Content-Disposition header.
+    Guarantees ASCII fallback (never crashes Starlette latin-1 header encoder)
+    while preserving full Unicode/UTF-8 filenames (Bengali, Arabic, emojis) in modern browsers.
+    """
+    clean = re.sub(r'[\r\n\t"/\\]', '_', str(filename or '')).strip() or default_name
+    ascii_name = re.sub(r'[^\x20-\x7E]', '_', clean).strip() or default_name
+    ascii_name = re.sub(r'_+', '_', ascii_name).strip('_') or default_name
+    utf8_encoded = urllib.parse.quote(clean.encode('utf-8'))
+    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{utf8_encoded}'
 
 # In-memory storage for active download files
 # file_id -> { "file_path": str, "filename": str, "filesize": int }
@@ -466,14 +481,14 @@ async def download_image_proxy(url: str, filename: str = "photo.jpg"):
         _image_stream_generator(),
         media_type=media_type,
         headers={
-            "Content-Disposition": f'attachment; filename="{safe_name}"',
+            "Content-Disposition": make_content_disposition_header(safe_name, "photo.jpg"),
             "Cache-Control": "no-cache",
         }
     )
 
 
 @app.get("/api/download_video")
-async def download_video_proxy(url: str, filename: str = "video.mp4", request: Request = None):
+async def download_video_proxy(request: Request, url: str = "", filename: str = "video.mp4"):
     """
     Stream video or audio directly from CDN with Content-Disposition: attachment header.
     Forces browser to download the file directly into user's Downloads folder without opening player tabs.
@@ -491,10 +506,9 @@ async def download_video_proxy(url: str, filename: str = "video.mp4", request: R
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
         'Accept': '*/*',
     }
-    if request:
-        range_hdr = request.headers.get('range')
-        if range_hdr:
-            vid_headers['Range'] = range_hdr
+    range_hdr = request.headers.get('range')
+    if range_hdr:
+        vid_headers['Range'] = range_hdr
 
     ext_lower = safe_name.rsplit('.', 1)[-1].lower() if '.' in safe_name else 'mp4'
     content_type_map = {
@@ -516,7 +530,7 @@ async def download_video_proxy(url: str, filename: str = "video.mp4", request: R
         _video_stream_generator(),
         media_type=media_type,
         headers={
-            "Content-Disposition": f'attachment; filename="{safe_name}"',
+            "Content-Disposition": make_content_disposition_header(safe_name, "video.mp4"),
             "Accept-Ranges": "bytes",
             "Cache-Control": "no-cache",
         }
@@ -573,7 +587,7 @@ async def proxy_stream(token: str, request: Request):
     media_type = content_type_map.get(ext_lower, 'application/octet-stream')
 
     headers = {
-        'Content-Disposition': f'attachment; filename="{filename}"',
+        'Content-Disposition': make_content_disposition_header(filename, "media.mp4"),
         'Accept-Ranges': 'bytes',
     }
 
