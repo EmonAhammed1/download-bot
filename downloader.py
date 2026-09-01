@@ -1697,20 +1697,25 @@ def extract_direct_url_sync(url: str, quality: str = "720", is_audio: bool = Fal
         filesize = (chosen or {}).get('filesize') or info.get('filesize')
         http_headers = (chosen or {}).get('http_headers') or info.get('http_headers') or {}
 
-        # Decide mode:
-        # - Platforms where browser / Telegram can directly fetch the URL → redirect
-        # - YouTube and others that need auth/special headers or audio merge → proxy stream
+        # Check if direct_url is an HLS playlist or DASH manifest (never send .m3u8 text playlist to browser as .mp4!)
+        is_hls_or_dash = (
+            direct_url and (
+                '.m3u8' in direct_url or 
+                '.mpd' in direct_url or 
+                'm3u8' in str((chosen or {}).get('protocol', '')) or
+                'dash' in str((chosen or {}).get('protocol', ''))
+            )
+        )
+
         is_direct_platform = any(p in url_lower for p in DIRECT_REDIRECT_PLATFORMS)
-        
-        # Check if video has separate audio that needs merge (e.g. YouTube DASH)
         has_audio = (chosen or {}).get('acodec') not in ('none', None) if chosen else True
 
-        if is_direct_platform and direct_url and (is_audio or has_audio):
+        if is_direct_platform and direct_url and not is_hls_or_dash and (is_audio or has_audio):
             mode = 'redirect'
-        elif is_direct_platform and direct_url:
+        elif is_direct_platform and direct_url and not is_hls_or_dash:
             mode = 'redirect'
         else:
-            # YouTube or formats that need streaming
+            # YouTube, Pinterest HLS, or formats that need proper streaming / assembly
             mode = 'stream'
 
         return {

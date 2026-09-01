@@ -477,17 +477,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Helper: trigger direct attachment file download via hidden iframe (No new tabs, direct save to disk!)
-  function _triggerAttachmentDownload(url) {
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = url;
-    document.body.appendChild(iframe);
+  // Helper: trigger direct attachment file download (direct save to disk!)
+  function _triggerAttachmentDownload(url, filename) {
+    const a = document.createElement('a');
+    a.href = url;
+    if (filename) a.download = filename;
+    document.body.appendChild(a);
+    a.click();
     setTimeout(() => {
-      if (document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
+      if (document.body.contains(a)) {
+        document.body.removeChild(a);
       }
-    }, 12000);
+    }, 1000);
   }
 
   // Helper: trigger a browser download via hidden <a> opening in new tab

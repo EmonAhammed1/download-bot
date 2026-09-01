@@ -374,18 +374,21 @@ async def get_direct_url(req: DirectRequest):
             'filename': filename,
         })
 
-    # 3. Redirect mode (Direct CDN for Instagram, Facebook, TikTok, Twitter, Pinterest)
+    # 3. Redirect mode (Direct CDN for Instagram, Facebook, TikTok, Twitter)
     if mode == 'redirect' and result.get('direct_url'):
-        debugPrint(f"/api/direct → redirect | URL: {str(result.get('direct_url'))[:80]}")
-        return JSONResponse({
-            'mode': 'redirect',
-            'direct_url': result.get('direct_url'),
-            'title': title,
-            'ext': ext,
-            'filename': filename,
-        })
+        durl = str(result.get('direct_url'))
+        is_m3u8_or_dash = '.m3u8' in durl or '.mpd' in durl or 'manifest' in durl
+        if not is_m3u8_or_dash:
+            debugPrint(f"/api/direct → redirect | URL: {durl[:80]}")
+            return JSONResponse({
+                'mode': 'redirect',
+                'direct_url': result.get('direct_url'),
+                'title': title,
+                'ext': ext,
+                'filename': filename,
+            })
 
-    # 3. For YouTube / Streams that require merging or token signing (Prevent 403 Forbidden 0-byte downloads)
+    # 4. For YouTube / Pinterest HLS / Streams that require merging or token signing (Prevent corrupt 0-byte downloads)
     debugPrint(f"/api/direct → YouTube/Stream mode. Downloading via yt-dlp with auto-cleanup (task_id={req.task_id})...")
     try:
         dl_result = await download_media(extracted_url, is_audio=req.is_audio, quality=req.quality, task_id=req.task_id)
